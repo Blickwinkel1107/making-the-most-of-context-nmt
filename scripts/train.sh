@@ -7,7 +7,14 @@ echo "Using GPU $CUDA_VISIBLE_DEVICES..."
 python -m src.bin.train \
     --model_name "transformer" \
     --reload \
-    --config_path "./configs/transformer_base_config.yaml" \
+    --config_path "./configs/dl4mt_nist_zh2en.yx.yaml" \
     --log_path "./log" \
-    --saveto "./save/" \
-    --use_gpu
+    --saveto "./save/"
+
+# python -m src.bin.train \
+#     --model_name "transformer" \
+#     --reload \
+#     --config_path "./configs/transformer_base_config.yaml" \
+#     --log_path "./log" \
+#     --saveto "./save/" \
+#     --use_gpu

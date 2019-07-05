@@ -5,6 +5,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+#NJUNMT
+log/*
+save/*
+valid/*
+result/*
+
 # C extensions
 *.so
 
