@@ -46,4 +46,17 @@ def run(**kwargs):
 
 
 if __name__ == '__main__':
-    run()
+    run(
+        model_name="transformer",
+        reload=True,
+        config_path="./configs/transformer_tvsub_zh2en.yaml",
+        log_path="./log/",
+        saveto="./save/"
+    )
+
+    # python -m src.bin.train \
+    # --model_name "transformer" \
+    # --reload \
+    # --config_path "./configs/dl4mt_nist_zh2en.yx.yaml" \
+    # --log_path "./log" \
+    # --saveto "./save/"

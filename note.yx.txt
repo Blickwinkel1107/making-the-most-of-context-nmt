@@ -2,18 +2,35 @@
 ./scripts/train.sh: 主调用脚本
 --config_path: 各个模型的配置参数，这里观察可见各个config文件差不多，具体还要进一步研究
 disp_freq, save_freq有用
-training使用分词并标准化后的文件
+train/valid/test使用分词并标准化后的文件
 
 
 目标：
 在wanglongyuedcu/TVsub字幕数据集上进行baseline翻译
 
-进行事项：
+准备事项：
 1) 用iwslt17的小数据(*.small.txt) 跑通 whr实现的dl4mt√
 2) 用iwslt17的小数据(*.small.txt) 跑通 whr实现的transformer√
 3) 用训练好的模型在小数据(src.small.txt)上解码√
 4) 在服务器上跑通模型，尝试解码(dl4mt在词表2w+时溢出，transformer可跑通)√
-5) 阅读dl4mt/transformer源码并弄懂程序运行流程
+5) 阅读dl4mt/transformer源码并弄懂程序运行流程√
+	--如何加新模型：写新模型->将新模型类名加入src.model.__init__::MODEL_CLS中->写配置文件.yaml
+	--运行新模型：train.sh中--config_path改为新模型的yaml就行
+6) 下载数据集tvsub√
+	--训练使用tvsub/data/process中的数据（已分词）
+	--*.dp.*是把代词丢弃后的句子，大多是主语丢弃，用于pronoun-drop语言研究，暂时先不用这个进行mt
+
+baseline实现：
+1) tvsub下载，建词表，BPE√
+2)
+	Tiedemann2017 [base=Helsinki NMT]: NMT with Extended Context: 2+1(previous sentence with "cc_" prefix) & 2+2(paired sentences in src & tgt with "BREAK" spliter), NO MODEL-level improvement
+	Wang2017: LC-NMT [base=Nematus(DL4MT)]: encode sentence as global context & decode with context
+	Tu2017 [base=RNNSearch]: NMT with cache: add cache memory to state to better decoding 
+	Miculicich2018: HAN-NMT [base=Transformer]:  use HAN when encoding to capture historical information, integrated both previous words & sentences info.
+	Kuang2017 [base=RNNSearch]: 
+	Bawden2017 [base=DL4MT]
+	
+
 
 bug report & fixed：
 1) TensorboardX: TypeError: __init__() got an unexpected keyword argument 'log_dir' 
@@ -23,10 +40,6 @@ bug report & fixed：
 3) translate.sh 运行脚本失败	--要加上-m选项
 4) translate.sh config.yaml文件找不到	--和训练用config一样就行(相当于加载模型参数)
 5) translate.sh model.tpz找不到	--改为用./save/*.best.final文件
-6) 缺少sacremoses	--pip安装
+6) 缺少sacremoses	--pip安装，注意这只出现在dev分支中，主分支不需要这个包
 7) 服务器跑dl4mt，词表＞20000都会导致显存溢出，已经设置batchsize=25, updcyc=2
 	--transformer 用whr师兄的配置跑显存一半不到:-)rnn可能太吃内存了
-
-
-paper1: 
-	LC-NMT 使用的是Theano，可能要复现

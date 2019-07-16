@@ -2,10 +2,12 @@ import random
 from typing import Iterator
 import numpy as np
 from itertools import count
-
 from src.utils.common_utils import GlobalNames
 from .dataset import Record, zip_records
 
+import src.context_cache as ctx
+import pickle
+# global global_index, sent2idx, idx2sent
 __all__ = [
     'DataIterator'
 ]
@@ -213,6 +215,23 @@ class DataIterator(object):
 
         # 1. Allocate a new buffer
         inc_buffer = fill_buffer(self.data_iter, stop=self._buffer_size, key=self._batching_key)
+        ### written by yue,xiang 2019.7.15
+        ### records global context cache
+        if ctx.ENABLE_CONTEXT:
+            for record in inc_buffer:
+                sentPair = record.fields
+                binSentPair = pickle.dumps(sentPair)
+                # binSentPair = str(sentPair)
+                if ctx.sent2idx.get(binSentPair):
+                    ctx.sent2idx[binSentPair].append(ctx.GLOBAL_INDEX)
+                else:
+                    ctx.sent2idx[binSentPair] = [ctx.GLOBAL_INDEX]
+                if ctx.idx2sent.get(ctx.GLOBAL_INDEX):
+                    ctx.idx2sent[ctx.GLOBAL_INDEX][0] += ctx.CONTEXT_SIZE
+                else:
+                    ctx.idx2sent[ctx.GLOBAL_INDEX] = [ctx.CONTEXT_SIZE, binSentPair]
+                ctx.GLOBAL_INDEX += 1
+
 
         if len(inc_buffer) <= 0:
             # data_iter reach the end of the dataset
@@ -222,6 +241,7 @@ class DataIterator(object):
         # 2. Merge the residual samples in previous buffer (if any) into the inc_buffer
         if len(self.buffer) > 0:
             new_buffer = self.buffer[0].content + inc_buffer
+            # lines = [x.fields for x in self.buffer[0].content] + lines
         else:
             new_buffer = inc_buffer
 
@@ -230,12 +250,15 @@ class DataIterator(object):
         # In order to randomize the process of batching, we add a little bit noise on the length.
 
         if self.use_bucket:
+            # unshuffled_buffer = new_buffer
             scores = np.array([record.index for record in new_buffer])
             noisy_scores = add_noise_to_length(scores)
             sorted_indices = np.argsort(noisy_scores).tolist()
             new_buffer = [new_buffer[i] for i in sorted_indices]
+            # new_lines = [lines[i] for i in sorted_indices]
 
         new_batch_buffer = batching(new_buffer, batch_size=batch_size, batching_key=self._batching_key)
+        # new_batch_lines refer to main.py!!!
         del new_buffer  # release memory
 
         self.buffer = new_batch_buffer

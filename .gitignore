@@ -10,6 +10,7 @@ log/*
 save/*
 valid/*
 result/*
+.vscode
 
 # C extensions
 *.so

@@ -29,10 +29,10 @@ policy degenerate into the vanilla Adam.
 
 We use the same settings as transformer_basev2.
 
-| System |MT03(dev) | MT04  | MT05  | MT06  |
+| System          |MT03(dev) | MT04  | MT05  | MT06  |
 |--------------|-----------|-------|-------|-------|
-| Word(maxlen=80)         | 43.88     | 45.68 | 42.14 | 41.32 |
-| BPE(maxlen=100) | 45.83 | 46.66 | 43.36 | 42.17 |
+| Word(maxlen=80) | 43.88  | 45.68 | 42.14 | 41.32 |
+| BPE(maxlen=100) | 45.83  | 46.66 | 43.36 | 42.17 |
 
 You can reproduce these results by using ```transformer_nist_zh2en.yaml``` and ```transformer_nist_zh2en_bpe.yaml``` under the ```configs``` folder.
 
