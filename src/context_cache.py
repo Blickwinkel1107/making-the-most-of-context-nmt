@@ -10,7 +10,7 @@ BOS = Vocabulary.BOS
 EOS = Vocabulary.EOS
 PAD = Vocabulary.PAD
 
-ENABLE_CONTEXT = True
+ENABLE_CONTEXT = False
 
 vocab_src = {}
 vocab_tgt = {}
@@ -63,10 +63,10 @@ def get_context(srcSent, tgtSent):
         sentPair = tuple(sentPair)  ##tuplize in order to match "key" format in "sent2idx" dict
         # binSentPair = str(sentPair)
 
-        for k,v in sent2idx.items():
-            src = pickle.loads(k)
-            src = vocab_src.ids2sent(src[0])
-            print(src)
+        # for k,v in sent2idx.items():
+        #     src = pickle.loads(k)
+        #     src = vocab_src.ids2sent(src[0])
+        #     print(src)
 
         binSentPair = pickle.dumps(sentPair)
         idx = sent2idx[binSentPair].pop()

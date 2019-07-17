@@ -219,7 +219,10 @@ class DataIterator(object):
         ### records global context cache
         if ctx.ENABLE_CONTEXT:
             for record in inc_buffer:
-                sentPair = record.fields
+                if record.fields.__len__() == 2:   ##training
+                    sentPair = record.fields
+                else:   ##validing
+                    sentPair = tuple( record.fields[i] for i in range(1,3) )
                 binSentPair = pickle.dumps(sentPair)
                 # binSentPair = str(sentPair)
                 if ctx.sent2idx.get(binSentPair):

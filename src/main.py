@@ -356,6 +356,7 @@ def train(FLAGS):
     model_configs = configs['model_configs']
     optimizer_configs = configs['optimizer_configs']
     training_configs = configs['training_configs']
+    # ctx.ENABLE_CONTEXT = configs['enable_history_context']
 
     GlobalNames.SEED = training_configs['seed']
 
@@ -680,7 +681,11 @@ def train(FLAGS):
                                        debug=FLAGS.debug):
                 ##yx
                 bak_idx = ctx.GLOBAL_INDEX
+                bak_sent2idx = ctx.sent2idx
+                bak_idx2sent = ctx.idx2sent
                 ctx.GLOBAL_INDEX = 0
+                ctx.sent2idx = dict()
+                ctx.idx2sent = dict()
                 if ma is not None:
                     origin_state_dict = deepcopy(nmt_model.state_dict())
                     nmt_model.load_state_dict(ma.export_ma_params(), strict=False)
@@ -733,6 +738,8 @@ def train(FLAGS):
                 ))
                 ##yx
                 ctx.GLOBAL_INDEX = bak_idx
+                ctx.sent2idx = bak_sent2idx
+                ctx.idx2sent = bak_idx2sent
 
         training_progress_bar.close()
 

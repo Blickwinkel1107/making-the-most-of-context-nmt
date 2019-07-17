@@ -4,9 +4,9 @@ data_configs:
     - "/home/perceptron/workspace/nlp/tvsub/train/train.zh.small"
     - "/home/perceptron/workspace/nlp/tvsub/train/train.en.small"
   valid_data:
-    - "/home/perceptron/workspace/nlp/tvsub/dev/dev_src"
-    - "/home/perceptron/workspace/nlp/tvsub/dev/dev_tgt"
-  bleu_valid_reference: "/home/perceptron/workspace/nlp/tvsub/dev/dev_tgt"
+    - "/home/perceptron/workspace/nlp/tvsub/dev/dev_src.small"
+    - "/home/perceptron/workspace/nlp/tvsub/dev/dev_tgt.small"
+  bleu_valid_reference: "/home/perceptron/workspace/nlp/tvsub/dev/dev_tgt.small"
   vocabularies:
     - type: "word"
       dict_path: "/home/perceptron/workspace/nlp/tvsub/vocab/zh.json"
@@ -43,7 +43,7 @@ optimizer_configs:
 
 training_configs:
   seed: 1234
-  max_epochs: 3
+  max_epochs: 50
   shuffle: true
   use_bucket: true
   batch_size: 10
@@ -54,9 +54,9 @@ training_configs:
   save_freq: 1000
   num_kept_checkpoints: 1
   loss_valid_freq: 5
-  bleu_valid_freq: 5
+  bleu_valid_freq: 10
   bleu_valid_batch_size: 5
-  bleu_valid_warmup: 0
+  bleu_valid_warmup: 1
   bleu_valid_configs:
     max_steps: 150
     beam_size: 5

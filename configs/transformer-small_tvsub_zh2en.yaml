@@ -1,12 +1,12 @@
 data_configs:
   lang_pair: "zh-en"
   train_data:
-    - "/home/perceptron/workspace/nlp/tvsub/train/train.zh"
-    - "/home/perceptron/workspace/nlp/tvsub/train/train.en"
+    - "/home/perceptron/workspace/nlp/tvsub/train/train.zh.small"
+    - "/home/perceptron/workspace/nlp/tvsub/train/train.en.small"
   valid_data:
-    - "/home/user_data/weihr/NMT_DATA_PY3/NIST-ZH-EN/test/mt03.src"
-    - "/home/user_data/weihr/NMT_DATA_PY3/NIST-ZH-EN/test/mt03.ref0"
-  bleu_valid_reference: "/home/user_data/weihr/NMT_DATA_PY3/NIST-ZH-EN/test/mt03.ref"
+    - "/home/perceptron/workspace/nlp/tvsub/dev/dev_src.small"
+    - "/home/perceptron/workspace/nlp/tvsub/dev/dev_tgt.small"
+  bleu_valid_reference: "/home/perceptron/workspace/nlp/tvsub/dev/dev_tgt.small"
   vocabularies:
     - type: "word"
       dict_path: "/home/perceptron/workspace/nlp/tvsub/vocab/zh.json"
@@ -17,16 +17,16 @@ data_configs:
   max_len:
     - 80
     - 80
-  num_refs: 4
+  num_refs: 1
   eval_at_char_level: false
 
 model_configs:
-  model: DocNMT
+  model: Transformer
   n_layers: 6
   n_head: 8
-  d_word_vec: 512
-  d_model: 512
-  d_inner_hid: 2048
+  d_word_vec: 256
+  d_model: 256
+  d_inner_hid: 512
   dropout: 0.1
   proj_share_weight: true
   label_smoothing: 0.1
@@ -38,25 +38,25 @@ optimizer_configs:
   optimizer_params: ~
   schedule_method: noam
   scheduler_configs:
-    d_model: 512
+    d_model: 256
     warmup_steps: 8000
 
 training_configs:
   seed: 1234
-  max_epochs: 50
+  max_epochs: 3
   shuffle: true
   use_bucket: true
-  batch_size: 1024
+  batch_size: 10
   batching_key: "tokens"
-  update_cycle: 4
+  update_cycle: 1
   valid_batch_size: 20
-  disp_freq: 1000
-  save_freq: 1000
+  disp_freq: 5
+  save_freq: 5
   num_kept_checkpoints: 1
-  loss_valid_freq: 1000
-  bleu_valid_freq: 1000
+  loss_valid_freq: 5
+  bleu_valid_freq: 10
   bleu_valid_batch_size: 5
-  bleu_valid_warmup: 1
+  bleu_valid_warmup: 0
   bleu_valid_configs:
     max_steps: 150
     beam_size: 5
