@@ -10,7 +10,7 @@ BOS = Vocabulary.BOS
 EOS = Vocabulary.EOS
 PAD = Vocabulary.PAD
 
-ENABLE_CONTEXT = False
+ENABLE_CONTEXT = True
 
 vocab_src = {}
 vocab_tgt = {}
@@ -21,7 +21,7 @@ idx2sent = dict()
 CONTEXT_SIZE = 3
 
 
-def get_context(srcSent, tgtSent):
+def get_context(srcSents):
     '''
     :param srcSent: src input tensor
     :param tgtSent: tgt input tensor
@@ -31,7 +31,6 @@ def get_context(srcSent, tgtSent):
 
     example: (assume you are training zh-en task)
         srcSent = [[zh-sent4], [zh-sent5]],
-        tgtSent = [[en-sent4], [en-sent5]],
         CONTEXT_SIZE = 3
         when the sentences order in source document is distributed like below:
         [
@@ -50,34 +49,26 @@ def get_context(srcSent, tgtSent):
             [zh-sent2, zh-sent3, zh-sent4]
         ]
     '''
-    srcSent = srcSent.data.numpy().tolist()
-    tgtSent = tgtSent.data.numpy().tolist()
+    srcSents = srcSents.data.numpy().tolist()
     contextSrcSents = []
     maxCtxSentLen = 0
-    for originSentPair in zip(srcSent, tgtSent):
+    for srcSent in srcSents:
         # print(originSentPair)    ##PAD = 0   EOS = 1   BOS = 2   UNK = 3
-        sentPair = []
-        for originSent in originSentPair:
-            sent = [ x for x in originSent if x not in (PAD, BOS, EOS) ]
-            sentPair.append(sent)
-        sentPair = tuple(sentPair)  ##tuplize in order to match "key" format in "sent2idx" dict
+        srcSent = [ x for x in srcSent if x not in [PAD, EOS, BOS] ]
+        sent = tuple(srcSent)  ##tuplize in order to match "key" format in "sent2idx" dict
         # binSentPair = str(sentPair)
 
-        # for k,v in sent2idx.items():
-        #     src = pickle.loads(k)
-        #     src = vocab_src.ids2sent(src[0])
-        #     print(src)
+        binSent = pickle.dumps(sent)
+        idx = sent2idx[binSent].pop()
 
-        binSentPair = pickle.dumps(sentPair)
-        idx = sent2idx[binSentPair].pop()
 
-        if sent2idx[binSentPair].__len__() == 0:
-            sent2idx.pop(binSentPair)   ###every key will only be accessed 1 time, so delete after accessed
+        if sent2idx[binSent].__len__() == 0:
+            sent2idx.pop(binSent)   ###every key will only be accessed 1 time, so delete after accessed
         contextSrcSentsForCurrentSent = []
         for i in range( max(0, idx-CONTEXT_SIZE), idx ):    ##access {idx-CONTEXT_SIZE, ..., idx-2, idx-1} or {0, ..., idx-2, idx-1}
-            binContextSrcSentPair = idx2sent[i][1]     ##[0]:ttl, [1]:binSentPair
-            contextSrcSentPair = pickle.loads(binContextSrcSentPair)
-            contextSrcSentsForCurrentSent += contextSrcSentPair[0]   ###only extend src context!
+            binContextSrcSent= idx2sent[i][1]     ##[0]:ttl, [1]:binSentPair
+            contextSrcSent = pickle.loads(binContextSrcSent)
+            contextSrcSentsForCurrentSent += contextSrcSent   ###only extend src context!
             idx2sent[i][0] -= 1
             if idx2sent[i][0] == 0: # ttl == 0
                 idx2sent.pop(i)

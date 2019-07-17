@@ -220,19 +220,19 @@ class DataIterator(object):
         if ctx.ENABLE_CONTEXT:
             for record in inc_buffer:
                 if record.fields.__len__() == 2:   ##training
-                    sentPair = record.fields
+                    sent = tuple( record.fields[0] )
                 else:   ##validing
-                    sentPair = tuple( record.fields[i] for i in range(1,3) )
-                binSentPair = pickle.dumps(sentPair)
-                # binSentPair = str(sentPair)
-                if ctx.sent2idx.get(binSentPair):
-                    ctx.sent2idx[binSentPair].append(ctx.GLOBAL_INDEX)
+                    sent = tuple( record.fields[1] )
+                binSent = pickle.dumps(sent)
+                # binSent = str(sent)
+                if ctx.sent2idx.get(binSent):
+                    ctx.sent2idx[binSent].append(ctx.GLOBAL_INDEX)
                 else:
-                    ctx.sent2idx[binSentPair] = [ctx.GLOBAL_INDEX]
+                    ctx.sent2idx[binSent] = [ctx.GLOBAL_INDEX]
                 if ctx.idx2sent.get(ctx.GLOBAL_INDEX):
                     ctx.idx2sent[ctx.GLOBAL_INDEX][0] += ctx.CONTEXT_SIZE
                 else:
-                    ctx.idx2sent[ctx.GLOBAL_INDEX] = [ctx.CONTEXT_SIZE, binSentPair]
+                    ctx.idx2sent[ctx.GLOBAL_INDEX] = [ctx.CONTEXT_SIZE, binSent]
                 ctx.GLOBAL_INDEX += 1
 
 

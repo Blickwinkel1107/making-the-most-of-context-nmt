@@ -360,7 +360,7 @@ class DocNMT(NMTModel):
 
         enc_output, enc_mask = self.encoder(src_seq)
 
-        ctx_src_sents = ctx.get_context(src_seq, tgt_seq)  ###get context sents
+        ctx_src_sents = ctx.get_context(src_seq)  ###get context sents
 
         enc_output = self.context_encoder(enc_output, ctx_src_sents)
 
@@ -370,9 +370,13 @@ class DocNMT(NMTModel):
 
     def encode(self, src_seq):
 
-        ctx, ctx_mask = self.encoder(src_seq)
+        enc_output, ctx_mask = self.encoder(src_seq)
 
-        return {"ctx": ctx, "ctx_mask": ctx_mask}
+        ctx_src_sents = ctx.get_context(src_seq)  ###get context sents
+
+        enc_output = self.context_encoder(enc_output, ctx_src_sents)
+
+        return {"ctx": enc_output, "ctx_mask": ctx_mask}
 
     def init_decoder(self, enc_outputs, expand_size=1):
 

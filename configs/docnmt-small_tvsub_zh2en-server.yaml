@@ -46,17 +46,17 @@ training_configs:
   max_epochs: 50
   shuffle: true
   use_bucket: true
-  batch_size: 30
+  batch_size: 1024
   batching_key: "tokens"
-  update_cycle: 1
-  valid_batch_size: 20
-  disp_freq: 50
-  save_freq: 50
+  update_cycle: 4
+  valid_batch_size: 128
+  disp_freq: 1000
+  save_freq: 1000
   num_kept_checkpoints: 1
-  loss_valid_freq: 15
-  bleu_valid_freq: 20
-  bleu_valid_batch_size: 5
-  bleu_valid_warmup: 0
+  loss_valid_freq: 1000
+  bleu_valid_freq: 1000
+  bleu_valid_batch_size: 64
+  bleu_valid_warmup: 1
   bleu_valid_configs:
     max_steps: 150
     beam_size: 5
