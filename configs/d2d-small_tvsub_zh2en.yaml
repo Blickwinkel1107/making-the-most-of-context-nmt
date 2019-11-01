@@ -45,7 +45,7 @@ optimizer_configs:
 training_configs:
   seed: 1234
   max_epochs: 3
-  shuffle: true
+  shuffle: false
   use_bucket: true
   batch_size: 10
   batching_key: "tokens"
