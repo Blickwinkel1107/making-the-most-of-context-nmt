@@ -2,6 +2,7 @@ import src.context_cache as ctx
 
 from .transformer import *
 from src.models.mem_transformer import *
+from src.modules.transformer_xl_utils.parameter_init import weights_init
 
 class D2D(NMTModel):
     def __init__(
@@ -24,7 +25,8 @@ class D2D(NMTModel):
                                         d_inner=d_inner_hid, attn_type=0,
                                         tgt_len=tgt_len, mem_len=mem_len, ext_len=ext_len
                                         )
-
+        self.decoder.apply(weights_init)
+        self.decoder.word_emb.apply(weights_init)
         # self.decoder = Decoder(
         #     n_tgt_vocab, n_layers=n_layers, n_head=n_head,
         #     d_word_vec=d_word_vec, d_model=d_model,

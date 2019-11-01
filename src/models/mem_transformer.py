@@ -585,8 +585,8 @@ class MemTransformerLM(nn.Module):
     def _create_params(self):
         if self.attn_type == 0: # default attention
             self.pos_emb = PositionalEmbedding(self.d_model)
-            self.r_w_bias = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.n_head, self.d_head)))
-            self.r_r_bias = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.n_head, self.d_head)))
+            self.r_w_bias = nn.Parameter(torch.Tensor(self.n_head, self.d_head))
+            self.r_r_bias = nn.Parameter(torch.Tensor(self.n_head, self.d_head))
         elif self.attn_type == 1: # learnable
             self.r_emb = nn.Parameter(torch.Tensor(
                     self.n_layer, self.max_klen, self.n_head, self.d_head))

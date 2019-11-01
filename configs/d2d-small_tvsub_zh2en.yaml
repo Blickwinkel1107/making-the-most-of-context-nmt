@@ -46,7 +46,7 @@ training_configs:
   seed: 1234
   max_epochs: 3
   shuffle: false
-  use_bucket: true
+  use_bucket: false
   batch_size: 10
   batching_key: "tokens"
   update_cycle: 1
