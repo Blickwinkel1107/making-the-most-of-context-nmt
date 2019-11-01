@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import src.context_cache as ctx
 
 from .transformer import *
 from src.modules.mem_transformer import *
@@ -50,7 +51,7 @@ class D2D(NMTModel):
         if proj_share_weight:
             self.generator = Generator(n_words=n_tgt_vocab,
                                        hidden_size=d_word_vec,
-                                       shared_weight=self.decoder.embeddings.embeddings.weight,
+                                       shared_weight=self.decoder.word_emb.emb_layers[0].embeddings.weight,
                                        padding_idx=PAD)
 
         else:
@@ -58,10 +59,12 @@ class D2D(NMTModel):
 
     def forward(self, src_seq, tgt_seq, log_probs=True):
         enc_output, enc_mask = self.encoder(src_seq)
-        mems = tuple()
         dec_inp = tgt_seq[:, :-1]
         dec_tgt = tgt_seq[:, 1:]
-        dec_output, _, _ = self.decoder(dec_inp, dec_tgt, *mems)
+        dec_inp_T = dec_inp.transpose(0, 1).contiguous()
+        dec_tgt_T = dec_tgt.transpose(0, 1).contiguous()
+        ret = self.decoder(dec_inp_T, dec_tgt_T, *ctx.memory_cache)
+        loss, ctx.memory_cache = ret[0], ret[1:]
 
         return self.generator(dec_output, log_probs=log_probs)
 

@@ -184,16 +184,6 @@ def loss_validation(model, critic, valid_iterator):
     for batch in valid_iter:
         _, seqs_x, seqs_y = batch
 
-        #####show sentence!
-        src_batch_sents = []
-        tgt_batch_sents = []
-        for sent in seqs_x:
-            src_batch_sents.append(ctx.vocab_src.ids2sent(sent))
-        for sent in seqs_y:
-            tgt_batch_sents.append(ctx.vocab_tgt.ids2sent(sent))
-        #####
-        # print(ctx.global_index)
-
         n_sents += len(seqs_x)
         n_tokens += sum(len(s) for s in seqs_y)
 
@@ -355,7 +345,7 @@ def train(FLAGS):
     model_configs = configs['model_configs']
     optimizer_configs = configs['optimizer_configs']
     training_configs = configs['training_configs']
-    # ctx.ENABLE_CONTEXT = configs['enable_history_context']
+    ctx.ENABLE_CONTEXT = model_configs['enable_history_context']
 
     GlobalNames.SEED = training_configs['seed']
 
@@ -374,8 +364,6 @@ def train(FLAGS):
     # Generate target dictionary
     vocab_src = Vocabulary(**data_configs["vocabularies"][0])
     vocab_tgt = Vocabulary(**data_configs["vocabularies"][1])
-    ctx.vocab_src = vocab_src
-    ctx.vocab_tgt = vocab_tgt
 
     train_batch_size = training_configs["batch_size"] * max(1, training_configs["update_cycle"])
     train_buffer_size = training_configs["buffer_size"] * max(1, training_configs["update_cycle"])
@@ -525,10 +513,6 @@ def train(FLAGS):
     timer_for_speed = Timer()
     timer_for_speed.tic()
 
-    ##fuck id2token here
-    # src_id2token = train_bitext_dataset.datasets[0]._vocab._id2token
-    # tgt_id2token = train_bitext_dataset.datasets[1]._vocab._id2token
-
     INFO('Begin training...')
 
     while True:
@@ -550,15 +534,21 @@ def train(FLAGS):
 
             seqs_x, seqs_y = batch
 
-            #####show sentence!
-            # src_batch_sents = []
-            # tgt_batch_sents = []
-            # for sent in seqs_x:
-            #     src_batch_sents.append(vocab_src.ids2sent(sent))
-            # for sent in seqs_y:
-            #     tgt_batch_sents.append(vocab_tgt.ids2sent(sent))
+            #####show sentence######
+            src_batch_sents = []
+            tgt_batch_sents = []
+            for sent in seqs_x:
+                src_batch_sents.append(vocab_src.ids2sent(sent))
+            for sent in seqs_y:
+                tgt_batch_sents.append(vocab_tgt.ids2sent(sent))
             #####
-            # print(ctx.global_index)
+
+            print(src_batch_sents)
+            print(tgt_batch_sents)
+
+            if ctx.ENABLE_CONTEXT:
+                ctx.memory_cache = tuple()
+
 
             n_samples_t = len(seqs_x)
             n_words_t = sum(len(s) for s in seqs_y)
@@ -635,14 +625,6 @@ def train(FLAGS):
             if should_trigger_by_steps(global_step=uidx, n_epoch=eidx, every_n_step=training_configs['loss_valid_freq'],
                                        debug=FLAGS.debug):
                 ##yx
-                # bak_idx = ctx.GLOBAL_INDEX
-                # bak_sent2idx = ctx.sent2idx
-                # bak_idx2sent = ctx.idx2sent
-                # ctx.GLOBAL_INDEX = 0
-                # ctx.sent2idx = dict()
-                # ctx.idx2sent = dict()
-                bak_sent2ctx = ctx.sent2ctx
-                ctx.sent2ctx = dict()
                 if ma is not None:
                     origin_state_dict = deepcopy(nmt_model.state_dict())
                     nmt_model.load_state_dict(ma.export_ma_params(), strict=False)
@@ -668,12 +650,6 @@ def train(FLAGS):
                 if optimizer_configs["schedule_method"] == "loss":
                     scheduler.step(metric=best_valid_loss)
 
-                ##yx
-                # ctx.GLOBAL_INDEX = bak_idx
-                # ctx.sent2idx = bak_sent2idx
-                # ctx.idx2sent = bak_idx2sent
-                ctx.sent2ctx = bak_sent2ctx
-
             # ================================================================================== #
             # BLEU Validation & Early Stop
 
@@ -681,15 +657,7 @@ def train(FLAGS):
                                        every_n_step=training_configs['bleu_valid_freq'],
                                        min_step=training_configs['bleu_valid_warmup'],
                                        debug=FLAGS.debug):
-                ##yx
-                # bak_idx = ctx.GLOBAL_INDEX
-                # bak_sent2idx = ctx.sent2idx
-                # bak_idx2sent = ctx.idx2sent
-                # ctx.GLOBAL_INDEX = 0
-                # ctx.sent2idx = dict()
-                # ctx.idx2sent = dict()
-                bak_sent2ctx = ctx.sent2ctx
-                ctx.sent2ctx = dict()
+
                 if ma is not None:
                     origin_state_dict = deepcopy(nmt_model.state_dict())
                     nmt_model.load_state_dict(ma.export_ma_params(), strict=False)
@@ -740,18 +708,11 @@ def train(FLAGS):
                 INFO("{0} Loss: {1:.2f} BLEU: {2:.2f} lrate: {3:6f} patience: {4}".format(
                     uidx, valid_loss, valid_bleu, lrate, bad_count
                 ))
-                ##yx
-                # ctx.GLOBAL_INDEX = bak_idx
-                # ctx.sent2idx = bak_sent2idx
-                # ctx.idx2sent = bak_idx2sent
-                ctx.sent2ctx = bak_sent2ctx
 
         training_progress_bar.close()
 
         if ctx.ENABLE_CONTEXT:
-            ctx.GLOBAL_INDEX = 0
-            # ctx.sent2idx = dict()
-            # ctx.idx2sent = dict()
+            ctx.memory_cache = tuple()
 
         eidx += 1
         if eidx > training_configs["max_epochs"]:

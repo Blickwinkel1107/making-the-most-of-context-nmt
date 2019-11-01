@@ -506,7 +506,9 @@ class MemTransformerLM(nn.Module):
         self.d_embed = d_embed
         self.d_model = d_model
         self.n_head = n_head
+        d_head = d_model // n_head if d_head is None else d_head
         self.d_head = d_head
+
 
         self.word_emb = AdaptiveEmbedding(n_token, d_embed, d_model, cutoffs, 
                                           div_val=div_val)
@@ -583,8 +585,8 @@ class MemTransformerLM(nn.Module):
     def _create_params(self):
         if self.attn_type == 0: # default attention
             self.pos_emb = PositionalEmbedding(self.d_model)
-            self.r_w_bias = nn.Parameter(torch.Tensor(self.n_head, self.d_head))
-            self.r_r_bias = nn.Parameter(torch.Tensor(self.n_head, self.d_head))
+            self.r_w_bias = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.n_head, self.d_head)))
+            self.r_r_bias = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(self.n_head, self.d_head)))
         elif self.attn_type == 1: # learnable
             self.r_emb = nn.Parameter(torch.Tensor(
                     self.n_layer, self.max_klen, self.n_head, self.d_head))

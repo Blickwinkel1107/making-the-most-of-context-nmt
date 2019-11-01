@@ -232,21 +232,6 @@ class ZipDataset(Dataset):
         # records = [d._apply(l) for d, l in zip(self.datasets, lines)]
         records = [d._apply(l) for d, l in parsematch]
 
-        ### written by yue,xiang 2019.7.15
-        ### records global context cache
-        if ctx.ENABLE_CONTEXT:
-
-            if records[0].fields[0]:  ##training  {context, src, tgt}
-                contextSents = [ record.fields[0] for record in records[0:-2] ]
-            else: ##validing
-                contextSents = [ record.fields[0] for record in records[1:-2] ]
-            currentSent = records[-2].fields[0]
-            if ctx.sent2ctx.get(str(currentSent)):
-                ctx.sent2ctx[str(currentSent)].append(contextSents)
-            else:
-                ctx.sent2ctx[str(currentSent)] = [contextSents]
-            records = records[-2:]
-
         if any([r is None for r in records]):
             return None
         else:

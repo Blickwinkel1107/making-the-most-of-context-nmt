@@ -22,13 +22,14 @@ data_configs:
 
 model_configs:
   model: D2D
+  enable_history_context: true
   n_layers: 6
   n_head: 8
   d_word_vec: 256
   d_model: 256
   d_inner_hid: 512
   dropout: 0.1
-  proj_share_weight: true
+  proj_share_weight: false
   label_smoothing: 0.1
 
 optimizer_configs:
