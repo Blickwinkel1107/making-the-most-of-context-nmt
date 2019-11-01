@@ -3,6 +3,7 @@ import os
 import random
 import tempfile
 from typing import Union
+import src.context_cache as ctx
 
 from src.utils.logging import INFO
 from .vocabulary import Vocabulary
@@ -46,7 +47,7 @@ def zip_records(*records: Record):
 
     return Record(*new_fields, index=max(indices))
 
-def shuffle(*path):
+def shuffle_data(*path):
 
     f_handles = [open(p) for p in path]
 
@@ -140,6 +141,9 @@ class Dataset(object):
 
         for lines in zip(*f_handles):
 
+            tgt = lines[1]
+            lines = lines[0].split('@@@@@')
+            lines.append(tgt)
             record = self._apply(*lines)
 
             if record is not None:
@@ -214,8 +218,8 @@ class ZipDataset(Dataset):
 
     def _data_iter(self, shuffle):
 
-        if shuffle:
-            return shuffle(*self.data_path)
+        if self.shuffle:
+            return shuffle_data(*self.data_path)
         else:
             return [open(dp) for dp in self.data_path]
 
@@ -223,8 +227,25 @@ class ZipDataset(Dataset):
         """
         :type dataset: TextDataset
         """
+        parsematch = [ (self.datasets[0], lines[i]) for i in range(-lines.__len__(), -1) ] \
+                     + [ (self.datasets[1], lines[-1]) ]
+        # records = [d._apply(l) for d, l in zip(self.datasets, lines)]
+        records = [d._apply(l) for d, l in parsematch]
 
-        records = [d._apply(l) for d, l in zip(self.datasets, lines)]
+        ### written by yue,xiang 2019.7.15
+        ### records global context cache
+        if ctx.ENABLE_CONTEXT:
+
+            if records[0].fields[0]:  ##training  {context, src, tgt}
+                contextSents = [ record.fields[0] for record in records[0:-2] ]
+            else: ##validing
+                contextSents = [ record.fields[0] for record in records[1:-2] ]
+            currentSent = records[-2].fields[0]
+            if ctx.sent2ctx.get(str(currentSent)):
+                ctx.sent2ctx[str(currentSent)].append(contextSents)
+            else:
+                ctx.sent2ctx[str(currentSent)] = [contextSents]
+            records = records[-2:]
 
         if any([r is None for r in records]):
             return None

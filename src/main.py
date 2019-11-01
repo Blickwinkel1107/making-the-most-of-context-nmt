@@ -178,8 +178,7 @@ def loss_validation(model, critic, valid_iterator):
     n_sents = 0
     n_tokens = 0.0
 
-    sum_loss = 0.0
-
+    sum_loss = 0
     valid_iter = valid_iterator.build_generator()
 
     for batch in valid_iter:
@@ -636,12 +635,14 @@ def train(FLAGS):
             if should_trigger_by_steps(global_step=uidx, n_epoch=eidx, every_n_step=training_configs['loss_valid_freq'],
                                        debug=FLAGS.debug):
                 ##yx
-                bak_idx = ctx.GLOBAL_INDEX
-                bak_sent2idx = ctx.sent2idx
-                bak_idx2sent = ctx.idx2sent
-                ctx.GLOBAL_INDEX = 0
-                ctx.sent2idx = dict()
-                ctx.idx2sent = dict()
+                # bak_idx = ctx.GLOBAL_INDEX
+                # bak_sent2idx = ctx.sent2idx
+                # bak_idx2sent = ctx.idx2sent
+                # ctx.GLOBAL_INDEX = 0
+                # ctx.sent2idx = dict()
+                # ctx.idx2sent = dict()
+                bak_sent2ctx = ctx.sent2ctx
+                ctx.sent2ctx = dict()
                 if ma is not None:
                     origin_state_dict = deepcopy(nmt_model.state_dict())
                     nmt_model.load_state_dict(ma.export_ma_params(), strict=False)
@@ -668,9 +669,10 @@ def train(FLAGS):
                     scheduler.step(metric=best_valid_loss)
 
                 ##yx
-                ctx.GLOBAL_INDEX = bak_idx
-                ctx.sent2idx = bak_sent2idx
-                ctx.idx2sent = bak_idx2sent
+                # ctx.GLOBAL_INDEX = bak_idx
+                # ctx.sent2idx = bak_sent2idx
+                # ctx.idx2sent = bak_idx2sent
+                ctx.sent2ctx = bak_sent2ctx
 
             # ================================================================================== #
             # BLEU Validation & Early Stop
@@ -680,12 +682,14 @@ def train(FLAGS):
                                        min_step=training_configs['bleu_valid_warmup'],
                                        debug=FLAGS.debug):
                 ##yx
-                bak_idx = ctx.GLOBAL_INDEX
-                bak_sent2idx = ctx.sent2idx
-                bak_idx2sent = ctx.idx2sent
-                ctx.GLOBAL_INDEX = 0
-                ctx.sent2idx = dict()
-                ctx.idx2sent = dict()
+                # bak_idx = ctx.GLOBAL_INDEX
+                # bak_sent2idx = ctx.sent2idx
+                # bak_idx2sent = ctx.idx2sent
+                # ctx.GLOBAL_INDEX = 0
+                # ctx.sent2idx = dict()
+                # ctx.idx2sent = dict()
+                bak_sent2ctx = ctx.sent2ctx
+                ctx.sent2ctx = dict()
                 if ma is not None:
                     origin_state_dict = deepcopy(nmt_model.state_dict())
                     nmt_model.load_state_dict(ma.export_ma_params(), strict=False)
@@ -737,9 +741,10 @@ def train(FLAGS):
                     uidx, valid_loss, valid_bleu, lrate, bad_count
                 ))
                 ##yx
-                ctx.GLOBAL_INDEX = bak_idx
-                ctx.sent2idx = bak_sent2idx
-                ctx.idx2sent = bak_idx2sent
+                # ctx.GLOBAL_INDEX = bak_idx
+                # ctx.sent2idx = bak_sent2idx
+                # ctx.idx2sent = bak_idx2sent
+                ctx.sent2ctx = bak_sent2ctx
 
         training_progress_bar.close()
 

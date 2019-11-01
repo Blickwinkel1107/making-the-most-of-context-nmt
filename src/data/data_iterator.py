@@ -215,25 +215,6 @@ class DataIterator(object):
 
         # 1. Allocate a new buffer
         inc_buffer = fill_buffer(self.data_iter, stop=self._buffer_size, key=self._batching_key)
-        ### written by yue,xiang 2019.7.15
-        ### records global context cache
-        if ctx.ENABLE_CONTEXT:
-            for record in inc_buffer:
-                if record.fields.__len__() == 2:   ##training
-                    sent = tuple( record.fields[0] )
-                else:   ##validing
-                    sent = tuple( record.fields[1] )
-                binSent = pickle.dumps(sent)
-                # binSent = str(sent)
-                if ctx.sent2idx.get(binSent):
-                    ctx.sent2idx[binSent].append(ctx.GLOBAL_INDEX)
-                else:
-                    ctx.sent2idx[binSent] = [ctx.GLOBAL_INDEX]
-                if ctx.idx2sent.get(ctx.GLOBAL_INDEX):
-                    ctx.idx2sent[ctx.GLOBAL_INDEX][0] += ctx.CONTEXT_SIZE
-                else:
-                    ctx.idx2sent[ctx.GLOBAL_INDEX] = [ctx.CONTEXT_SIZE, binSent]
-                ctx.GLOBAL_INDEX += 1
 
 
         if len(inc_buffer) <= 0:

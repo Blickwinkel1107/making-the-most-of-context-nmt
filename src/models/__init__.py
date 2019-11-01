@@ -15,6 +15,7 @@
 from .dl4mt import DL4MT
 from .transformer import Transformer
 from .DocNMT import DocNMT
+from .D2D import D2D
 
 __all__ = [
     "build_model",
@@ -24,6 +25,7 @@ MODEL_CLS = {
     "Transformer": Transformer,
     "DL4MT": DL4MT,
     "DocNMT": DocNMT,
+    "D2D": D2D
 }
 
 
