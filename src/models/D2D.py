@@ -1,11 +1,7 @@
-import numpy as np
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
 import src.context_cache as ctx
 
 from .transformer import *
-from src.modules.mem_transformer import *
+from src.models.mem_transformer import *
 
 class D2D(NMTModel):
     def __init__(

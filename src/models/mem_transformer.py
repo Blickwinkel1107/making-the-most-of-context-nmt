@@ -8,8 +8,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .xl_utils.proj_adaptive_softmax import ProjectedAdaptiveLogSoftmax
-from .xl_utils.log_uniform_sampler import LogUniformSampler, sample_logits
+from src.modules.transformer_xl_utils.proj_adaptive_softmax import ProjectedAdaptiveLogSoftmax
+from src.modules.transformer_xl_utils.log_uniform_sampler import LogUniformSampler, sample_logits
 
 class PositionalEmbedding(nn.Module):
     def __init__(self, demb):
