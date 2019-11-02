@@ -23,7 +23,8 @@ class D2D(NMTModel):
                                         d_model=d_model, d_head=dim_per_head,
                                         dropout=dropout, dropatt=dropout,
                                         d_inner=d_inner_hid, attn_type=0,
-                                        tgt_len=tgt_len, mem_len=mem_len, ext_len=ext_len
+                                        tgt_len=tgt_len, mem_len=mem_len, ext_len=ext_len,
+                                        pre_lnorm=True
                                         )
         self.decoder.apply(weights_init)
         self.decoder.word_emb.apply(weights_init)
@@ -59,7 +60,8 @@ class D2D(NMTModel):
         enc_output, enc_mask = self.encoder(src_seq)
         dec_inp = tgt_seq
         dec_inp_T = dec_inp.transpose(0, 1).contiguous()
-        dec_pred_T, ctx.memory_cache = self.decoder(dec_inp_T, *ctx.memory_cache)
+        enc_out_T = enc_output.transpose(0, 1).contiguous()
+        dec_pred_T, ctx.memory_cache = self.decoder(dec_inp_T, enc_out_T, *ctx.memory_cache)
         dec_pred =  dec_pred_T.transpose(0, 1).contiguous()
 
         return self.generator(dec_pred, log_probs=log_probs)

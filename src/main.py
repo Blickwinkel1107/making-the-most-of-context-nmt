@@ -546,8 +546,7 @@ def train(FLAGS):
             print(src_batch_sents)
             print(tgt_batch_sents)
 
-            if ctx.ENABLE_CONTEXT:
-                ctx.memory_cache = tuple()
+            ctx.memory_cache = tuple()
 
 
             n_samples_t = len(seqs_x)
