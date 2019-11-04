@@ -181,9 +181,6 @@ def loss_validation(model, critic, valid_iterator):
     sum_loss = 0
     valid_iter = valid_iterator.build_generator()
 
-    ##yx swap tmp memory_cache for loss valid
-    ctx.tmp_memory_cache, ctx.memory_cache = ctx.memory_cache, ctx.tmp_memory_cache
-
     for batch in valid_iter:
         _, seqs_x, seqs_y = batch
 
@@ -204,10 +201,6 @@ def loss_validation(model, critic, valid_iterator):
             WARN("NaN detected!")
 
         sum_loss += float(loss)
-
-    ##yx: swap back
-    ctx.memory_cache = ctx.tmp_memory_cache
-    ctx.tmp_memory_cache = tuple()
 
     return float(sum_loss / n_sents)
 
@@ -235,6 +228,8 @@ def bleu_validation(uidx,
     valid_iter = valid_iterator.build_generator(batch_size=batch_size)
 
     for batch in valid_iter:
+
+        ctx.memory_cache = tuple()
 
         seq_nums = batch[0]
         numbers += seq_nums

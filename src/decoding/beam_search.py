@@ -25,6 +25,7 @@ import torch
 from src.data.vocabulary import BOS, EOS, PAD
 from src.models.base import NMTModel
 from .utils import mask_scores, tensor_gather_helper
+import src.context_cache as ctx
 
 
 def beam_search(nmt_model, beam_size, max_steps, src_seqs, alpha=-1.0):
@@ -54,6 +55,9 @@ def beam_search(nmt_model, beam_size, max_steps, src_seqs, alpha=-1.0):
     dec_states = init_dec_states
 
     for t in range(max_steps):
+
+        if ctx.memory_cache is None:
+            ctx.memory_cache = tuple()
 
         next_scores, dec_states = nmt_model.decode(final_word_indices.view(batch_size * beam_size, -1), dec_states)
 
@@ -104,8 +108,8 @@ def beam_search(nmt_model, beam_size, max_steps, src_seqs, alpha=-1.0):
                                              batch_size=batch_size,
                                              beam_size=beam_size,
                                              gather_shape=[-1])
-
-        dec_states = nmt_model.reorder_dec_states(dec_states, new_beam_indices=next_beam_ids, beam_size=beam_size)
+        ### 20191103 attn_cache的优化之后再说！
+        # dec_states = nmt_model.reorder_dec_states(dec_states, new_beam_indices=next_beam_ids, beam_size=beam_size)
 
         # If next_word_ids is EOS, beam_mask_ should be 0.0
         beam_mask_ = 1.0 - next_word_ids.eq(EOS).float()

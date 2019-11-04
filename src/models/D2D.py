@@ -50,7 +50,7 @@ class D2D(NMTModel):
         if proj_share_weight:
             self.generator = Generator(n_words=n_tgt_vocab,
                                        hidden_size=d_word_vec,
-                                       shared_weight=self.decoder.word_emb.emb_layers[0].embeddings.weight,
+                                       shared_weight=self.decoder.word_emb.emb_layers[0].weight,
                                        padding_idx=PAD)
 
         else:
@@ -73,17 +73,60 @@ class D2D(NMTModel):
 
     def decode(self, tgt_seq, dec_states, log_probs=True):
 
-        ctx = dec_states["ctx"]
-        ctx_mask = dec_states['ctx_mask']
+        enc_output = dec_states["ctx"]
+        enc_output_mask = dec_states['ctx_mask']
         enc_attn_caches = dec_states['enc_attn_caches']
         slf_attn_caches = dec_states['slf_attn_caches']
 
+        dec_inp = tgt_seq
+        dec_inp_T = dec_inp.transpose(0, 1).contiguous()
+        enc_out_T = enc_output.transpose(0, 1).contiguous()
 
-        dec_output, slf_attn_caches, enc_attn_caches = self.decoder(tgt_seq, )
+        # dec_output, slf_attn_caches, enc_attn_caches = self.decoder(tgt_seq, )
+        dec_pred_T, ctx.memory_cache = self.decoder(dec_inp_T, enc_out_T, *ctx.memory_cache)
+        dec_pred = dec_pred_T.transpose(0, 1).contiguous()
 
-        next_scores = self.generator(dec_output[:, -1].contiguous(), log_probs=log_probs)
+        next_scores = self.generator(dec_pred[:, -1].contiguous(), log_probs=log_probs)
 
         dec_states['enc_attn_caches'] = enc_attn_caches
         dec_states['slf_attn_caches'] = slf_attn_caches
 
         return next_scores, dec_states
+
+    def init_decoder(self, enc_outputs, expand_size=1):
+
+        ctx = enc_outputs['ctx']
+
+        ctx_mask = enc_outputs['ctx_mask']
+
+        if expand_size > 1:
+            ctx = tile_batch(ctx, multiplier=expand_size)
+            ctx_mask = tile_batch(ctx_mask, multiplier=expand_size)
+
+        return {
+            "ctx": ctx,
+            "ctx_mask": ctx_mask,
+            "enc_attn_caches": None,
+            "slf_attn_caches": None
+        }
+
+    def reorder_dec_states(self, dec_states, new_beam_indices, beam_size):
+
+        slf_attn_caches = dec_states['slf_attn_caches']
+
+        batch_size = slf_attn_caches[0][0].size(0) // beam_size
+
+        n_head = self.decoder.n_head
+        dim_per_head = self.decoder.d_head
+
+        slf_attn_caches = nest.map_structure(
+            lambda t: tensor_gather_helper(gather_indices=new_beam_indices,
+                                           gather_from=t,
+                                           batch_size=batch_size,
+                                           beam_size=beam_size,
+                                           gather_shape=[batch_size * beam_size, n_head, -1, dim_per_head]),
+            slf_attn_caches)
+
+        dec_states['slf_attn_caches'] = slf_attn_caches
+
+        return dec_states

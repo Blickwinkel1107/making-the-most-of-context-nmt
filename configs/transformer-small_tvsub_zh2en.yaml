@@ -54,7 +54,7 @@ training_configs:
   save_freq: 5
   num_kept_checkpoints: 1
   loss_valid_freq: 5
-  bleu_valid_freq: 10
+  bleu_valid_freq: 2
   bleu_valid_batch_size: 5
   bleu_valid_warmup: 0
   bleu_valid_configs:
