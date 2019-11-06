@@ -22,7 +22,7 @@ data_configs:
 
 model_configs:
   model: D2D
-  enable_history_context: false
+  enable_history_context: true
   n_layers: 6
   n_head: 8
   d_word_vec: 128
@@ -45,8 +45,8 @@ optimizer_configs:
 training_configs:
   seed: 1234
   max_epochs: 3
-  shuffle: true
-  use_bucket: true
+  shuffle: false
+  use_bucket: false
   batch_size: 10
   batching_key: "tokens"
   update_cycle: 1
@@ -55,7 +55,7 @@ training_configs:
   num_kept_checkpoints: 1
   loss_valid_freq: 10
   valid_batch_size: 5
-  bleu_valid_freq: 30
+  bleu_valid_freq: 20
   bleu_valid_batch_size: 5
   bleu_valid_warmup: 0
   bleu_valid_configs:
