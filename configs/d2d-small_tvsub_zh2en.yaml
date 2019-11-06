@@ -22,14 +22,14 @@ data_configs:
 
 model_configs:
   model: D2D
-  enable_history_context: true
+  enable_history_context: false
   n_layers: 6
   n_head: 8
-  d_word_vec: 256
-  d_model: 256
-  d_inner_hid: 512
+  d_word_vec: 128
+  d_model: 128
+  d_inner_hid: 256
   dropout: 0.1
-  proj_share_weight: false
+  proj_share_weight: true
   label_smoothing: 0.1
 
 optimizer_configs:
@@ -39,23 +39,23 @@ optimizer_configs:
   optimizer_params: ~
   schedule_method: noam
   scheduler_configs:
-    d_model: 256
+    d_model: 128
     warmup_steps: 8000
 
 training_configs:
   seed: 1234
   max_epochs: 3
-  shuffle: false
-  use_bucket: false
+  shuffle: true
+  use_bucket: true
   batch_size: 10
   batching_key: "tokens"
   update_cycle: 1
-  valid_batch_size: 20
   disp_freq: 5
   save_freq: 5
   num_kept_checkpoints: 1
-  loss_valid_freq: 5
-  bleu_valid_freq: 10
+  loss_valid_freq: 10
+  valid_batch_size: 5
+  bleu_valid_freq: 30
   bleu_valid_batch_size: 5
   bleu_valid_warmup: 0
   bleu_valid_configs:

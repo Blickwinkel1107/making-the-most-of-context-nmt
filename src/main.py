@@ -184,6 +184,8 @@ def loss_validation(model, critic, valid_iterator):
     for batch in valid_iter:
         _, seqs_x, seqs_y = batch
 
+        ctx.memory_cache = tuple()  ##flush cache
+
         n_sents += len(seqs_x)
         n_tokens += sum(len(s) for s in seqs_y)
 
@@ -226,6 +228,8 @@ def bleu_validation(uidx,
     valid_iter = valid_iterator.build_generator(batch_size=batch_size)
 
     for batch in valid_iter:
+
+        ctx.memory_cache = tuple()
 
         seq_nums = batch[0]
         numbers += seq_nums
@@ -527,6 +531,8 @@ def train(FLAGS):
                                      )
         for batch in training_iter:
 
+            ctx.memory_cache = tuple()  ## flush memory cache
+
             uidx += 1
 
             if optimizer_configs["schedule_method"] is not None and optimizer_configs["schedule_method"] != "loss":
@@ -541,14 +547,11 @@ def train(FLAGS):
                 src_batch_sents.append(vocab_src.ids2sent(sent))
             for sent in seqs_y:
                 tgt_batch_sents.append(vocab_tgt.ids2sent(sent))
-            #####
 
             print(src_batch_sents)
             print(tgt_batch_sents)
 
-            if ctx.ENABLE_CONTEXT:
-                ctx.memory_cache = tuple()
-
+            ######################
 
             n_samples_t = len(seqs_x)
             n_words_t = sum(len(s) for s in seqs_y)
@@ -624,7 +627,6 @@ def train(FLAGS):
             # Loss Validation & Learning rate annealing
             if should_trigger_by_steps(global_step=uidx, n_epoch=eidx, every_n_step=training_configs['loss_valid_freq'],
                                        debug=FLAGS.debug):
-                ##yx
                 if ma is not None:
                     origin_state_dict = deepcopy(nmt_model.state_dict())
                     nmt_model.load_state_dict(ma.export_ma_params(), strict=False)
