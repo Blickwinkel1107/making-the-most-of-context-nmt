@@ -60,8 +60,8 @@ class D2D(NMTModel):
     def forward(self, src_seq, tgt_seq, log_probs=True):
         enc_output, enc_mask = self.encoder(src_seq)
         dec_inp = tgt_seq
-        dec_inp_T = dec_inp.transpose(0, 1).contiguous()
-        enc_out_T = enc_output.transpose(0, 1).contiguous()
+        dec_inp_T = dec_inp.transpose(0, 1)
+        enc_out_T = enc_output.transpose(0, 1)
         dec_pred_T, ctx.memory_cache = self.decoder(dec_inp_T, enc_out_T, *ctx.memory_cache)
         dec_pred =  dec_pred_T.transpose(0, 1).contiguous()
 
@@ -80,14 +80,14 @@ class D2D(NMTModel):
         slf_attn_caches = dec_states['slf_attn_caches']
 
         dec_inp = tgt_seq
-        dec_inp_T = dec_inp.transpose(0, 1).contiguous()
-        enc_out_T = enc_output.transpose(0, 1).contiguous()
+        dec_inp_T = dec_inp.transpose(0, 1)
+        enc_out_T = enc_output.transpose(0, 1)
 
         # dec_output, slf_attn_caches, enc_attn_caches = self.decoder(tgt_seq, )
         dec_pred_T, ctx.memory_cache = self.decoder(dec_inp_T, enc_out_T, *ctx.memory_cache)
         dec_pred = dec_pred_T.transpose(0, 1).contiguous()
 
-        next_scores = self.generator(dec_pred[:, -1].contiguous(), log_probs=log_probs)
+        next_scores = self.generator(dec_pred[:, -1], log_probs=log_probs)
 
         dec_states['enc_attn_caches'] = enc_attn_caches
         dec_states['slf_attn_caches'] = slf_attn_caches

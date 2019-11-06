@@ -1,22 +1,22 @@
 data_configs:
   lang_pair: "zh-en"
   train_data:
-    - "/home/perceptron/workspace/nlp/tvsub/train/train.zh.small"
-    - "/home/perceptron/workspace/nlp/tvsub/train/train.en.small"
+    - "/home/perceptron/workspace/nlp/tvsub/train/train-doc.zh.small"
+    - "/home/perceptron/workspace/nlp/tvsub/train/train-doc.en.small"
   valid_data:
-    - "/home/perceptron/workspace/nlp/tvsub/dev/dev_src.small"
-    - "/home/perceptron/workspace/nlp/tvsub/dev/dev_tgt.small"
-  bleu_valid_reference: "/home/perceptron/workspace/nlp/tvsub/dev/dev_tgt.small"
+    - "/home/perceptron/workspace/nlp/tvsub/dev/dev_src-doc.small"
+    - "/home/perceptron/workspace/nlp/tvsub/dev/dev_tgt-doc.small"
+  bleu_valid_reference: "/home/perceptron/workspace/nlp/tvsub/dev/dev_tgt-doc.small"
   vocabularies:
     - type: "word"
-      dict_path: "/home/perceptron/workspace/nlp/tvsub/vocab/zh.json"
+      dict_path: "/home/perceptron/workspace/nlp/tvsub/vocab/zh-doc.json"
       max_n_words: 30000
     - type: "word"
-      dict_path: "/home/perceptron/workspace/nlp/tvsub/vocab/en.json"
+      dict_path: "/home/perceptron/workspace/nlp/tvsub/vocab/en-doc.json"
       max_n_words: 30000
   max_len:
-    - 80
-    - 80
+    - -1
+    - -1
   num_refs: 1
   eval_at_char_level: false
 
@@ -44,11 +44,11 @@ optimizer_configs:
 
 training_configs:
   seed: 1234
-  max_epochs: 3
+  max_epochs: 40
   shuffle: false
   use_bucket: false
   batch_size: 10
-  batching_key: "tokens"
+  batching_key: "samples"
   update_cycle: 1
   disp_freq: 5
   save_freq: 5
