@@ -21,6 +21,7 @@ class D2D(NMTModel):
 
         self.decoder = MemTransformerLM(n_token=n_tgt_vocab, n_layer=n_layers, n_head=n_head,
                                         d_model=d_model, d_head=dim_per_head,
+                                        d_embed=d_word_vec,
                                         dropout=dropout, dropatt=dropout,
                                         d_inner=d_inner_hid, attn_type=0,
                                         tgt_len=tgt_len, mem_len=mem_len, ext_len=ext_len,

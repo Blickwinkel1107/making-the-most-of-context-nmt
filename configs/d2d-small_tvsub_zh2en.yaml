@@ -56,7 +56,7 @@ training_configs:
   loss_valid_freq: 10
   valid_batch_size: 5
   bleu_valid_freq: 20
-  bleu_valid_batch_size: 5
+  bleu_valid_batch_size: 1
   bleu_valid_warmup: 0
   bleu_valid_configs:
     max_steps: 150
