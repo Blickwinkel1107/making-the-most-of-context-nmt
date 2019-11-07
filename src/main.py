@@ -110,7 +110,7 @@ def prepare_data(seqs_x, seqs_y=None, cuda=False, batch_first=True):
             x = x.cuda()
         return x
 
-    seqs_x = list(map(lambda s: [BOS] + s + [EOS], seqs_x))
+    seqs_x = list(map(lambda s: [BOS] + s + [EOS] if len(s) != 0 else s, seqs_x))
     x = _np_pad_batch_2D(samples=seqs_x, pad=PAD,
                          cuda=cuda, batch_first=batch_first)
 
@@ -123,11 +123,43 @@ def prepare_data(seqs_x, seqs_y=None, cuda=False, batch_first=True):
 
     return x, y
 
+#added by yx 20191107
+def tgt_doc_seq_split(tgt_seqs: list):
+    SEP_id = ctx.vocab_tgt.token2id('<SEP>')
+    BOS_id = BOS
+    EOS_id = EOS
+
+    # split_res = [ [] ]*len(tgt_seqs)    #[[],[],[]]
+    split_res = []
+    dec_batch = []
+    seq_no = 0
+    for seq in tgt_seqs:
+        last_sep_index = 0
+        for i in range(len(seq)):
+            if seq[i] == SEP_id:
+                sent = seq[last_sep_index:i]  #last start word ~ word before SEP
+                if len(split_res) < seq_no + 1:
+                    split_res.append([])
+                split_res[seq_no].append(sent)
+                last_sep_index = i+1
+        seq_no += 1
+    max_n_sents = max( [ len(sents_of_seq) for sents_of_seq in split_res ] )    #get max sents number, ready for padding
+    for i in range( len(split_res) ):
+        ext_len = max_n_sents - len(split_res[i])
+        if ext_len == 0:
+            continue
+        while ext_len != 0:
+            split_res[i] += [ [] ]
+            ext_len -= 1
+    dec_batch = np.array(split_res).transpose()
+    return dec_batch
+
+
 
 def compute_forward(model,
                     critic,
                     seqs_x,
-                    seqs_y,
+                    y_dec_batch,
                     eval=False,
                     normalization=1.0,
                     norm_by_words=False
@@ -137,33 +169,41 @@ def compute_forward(model,
 
     :type critic: NMTCriterion
     """
-    y_inp = seqs_y[:, :-1].contiguous()
-    y_label = seqs_y[:, 1:].contiguous()
 
-    words_norm = y_label.ne(PAD).float().sum(1)
-
+    total_loss = 0
     if not eval:
         model.train()
         critic.train()
-        # For training
-        with torch.enable_grad():
-            log_probs = model(seqs_x, y_inp)
-            loss = critic(inputs=log_probs, labels=y_label, reduce=False, normalization=normalization)
-
-            if norm_by_words:
-                loss = loss.div(words_norm).sum()
-            else:
-                loss = loss.sum()
-        torch.autograd.backward(loss)
-        return loss.item()
     else:
         model.eval()
         critic.eval()
-        # For compute loss
-        with torch.no_grad():
-            log_probs = model(seqs_x, y_inp)
-            loss = critic(inputs=log_probs, labels=y_label, normalization=normalization, reduce=True)
-        return loss.item()
+    for y_sents in y_dec_batch:
+        y_inp = y_sents[:, :-1].contiguous()
+        y_label = y_sents[:, 1:].contiguous()
+
+        words_norm = y_label.ne(PAD).float().sum(1)
+        if not eval:
+            # For training
+            with torch.enable_grad():
+                log_probs = model(seqs_x, y_inp)
+                loss = critic(inputs=log_probs, labels=y_label, reduce=False, normalization=normalization)
+
+        else:
+            # For compute loss
+            with torch.no_grad():
+                log_probs = model(seqs_x, y_inp)
+                loss = critic(inputs=log_probs, labels=y_label, normalization=normalization, reduce=True)
+
+        if norm_by_words:
+            loss = loss.div(words_norm).sum()
+        else:
+            loss = loss.sum()
+        total_loss += loss
+    # end of for-LOOP
+
+    if not eval:
+        torch.autograd.backward(total_loss)
+    return total_loss.item()
 
 
 def loss_validation(model, critic, valid_iterator):
@@ -194,7 +234,7 @@ def loss_validation(model, critic, valid_iterator):
         loss = compute_forward(model=model,
                                critic=critic,
                                seqs_x=x,
-                               seqs_y=y,
+                               y_dec_batch=y,
                                eval=True)
 
         if np.isnan(loss):
@@ -368,6 +408,8 @@ def train(FLAGS):
     # Generate target dictionary
     vocab_src = Vocabulary(**data_configs["vocabularies"][0])
     vocab_tgt = Vocabulary(**data_configs["vocabularies"][1])
+
+    ctx.vocab_tgt = vocab_tgt
 
     train_batch_size = training_configs["batch_size"] * max(1, training_configs["update_cycle"])
     train_buffer_size = training_configs["buffer_size"] * max(1, training_configs["update_cycle"])
@@ -565,16 +607,21 @@ def train(FLAGS):
             try:
                 # Prepare data
                 for seqs_x_t, seqs_y_t in split_shard(seqs_x, seqs_y, split_size=training_configs['update_cycle']):
-                    x, y = prepare_data(seqs_x_t, seqs_y_t, cuda=GlobalNames.USE_GPU)
+                    # x, y = prepare_data(seqs_x_t, seqs_y_t, cuda=GlobalNames.USE_GPU)
+
+                    x = prepare_data(seqs_x_t, cuda=GlobalNames.USE_GPU)
+                    y_split = tgt_doc_seq_split(seqs_y_t)
+                    y_dec_batch = [ prepare_data(y_batch_untensored, cuda=GlobalNames.USE_GPU)
+                                   for y_batch_untensored in y_split ]
 
                     loss = compute_forward(model=nmt_model,
                                            critic=critic,
                                            seqs_x=x,
-                                           seqs_y=y,
+                                           y_dec_batch=y_dec_batch,
                                            eval=False,
                                            normalization=n_samples_t,
                                            norm_by_words=training_configs["norm_by_words"])
-                    train_loss += loss / y.size(1)
+                    train_loss += loss / x.size(1)
                 optim.step()
 
             except RuntimeError as e:

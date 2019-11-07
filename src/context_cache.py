@@ -5,6 +5,7 @@ ENABLE_CONTEXT = True
 
 memory_cache = tuple()
 tmp_memory_cache = tuple()
+vocab_tgt = None
 
 
 
