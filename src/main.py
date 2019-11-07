@@ -229,12 +229,15 @@ def loss_validation(model, critic, valid_iterator):
         n_sents += len(seqs_x)
         n_tokens += sum(len(s) for s in seqs_y)
 
-        x, y = prepare_data(seqs_x, seqs_y, cuda=GlobalNames.USE_GPU)
+        x = prepare_data(seqs_x, cuda=GlobalNames.USE_GPU)
+        y_split = tgt_doc_seq_split(seqs_y)
+        y_dec_batch = [ prepare_data(y_batch_untensored, cuda=GlobalNames.USE_GPU)
+                       for y_batch_untensored in y_split ]
 
         loss = compute_forward(model=model,
                                critic=critic,
                                seqs_x=x,
-                               y_dec_batch=y,
+                               y_dec_batch=y_dec_batch,
                                eval=True)
 
         if np.isnan(loss):
