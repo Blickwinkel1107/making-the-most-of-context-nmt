@@ -25,8 +25,7 @@ class D2D(NMTModel):
                                         dropout=dropout, dropatt=dropout,
                                         d_inner=d_inner_hid, attn_type=0,
                                         tgt_len=tgt_len, mem_len=mem_len, ext_len=ext_len,
-                                        pre_lnorm=True
-                                        )
+                                        pre_lnorm=False)
         self.decoder.apply(weights_init)
         self.decoder.word_emb.apply(weights_init)
 
@@ -48,10 +47,13 @@ class D2D(NMTModel):
     def forward(self, src_seq, tgt_seq, log_probs=True):
         enc_output, enc_mask = self.encoder(src_seq)
         dec_inp = tgt_seq
+
         dec_inp_T = dec_inp.transpose(0, 1)
         enc_out_T = enc_output.transpose(0, 1)
-        dec_pred_T, ctx.memory_cache = self.decoder(dec_inp_T, enc_out_T, *ctx.memory_cache)
-        dec_pred =  dec_pred_T.transpose(0, 1).contiguous()
+        enc_mask_T = enc_mask.transpose(0, 1)
+
+        dec_pred_T, ctx.memory_cache = self.decoder(dec_inp_T, enc_out_T, enc_mask_T, *ctx.memory_cache)
+        dec_pred = dec_pred_T.transpose(0, 1).contiguous()
 
         return self.generator(dec_pred, log_probs=log_probs)
 
@@ -59,6 +61,18 @@ class D2D(NMTModel):
 
         ctx, ctx_mask = self.encoder(src_seq)
         return {"ctx": ctx, "ctx_mask": ctx_mask}
+
+    def decode_train(self, tgt_seq, enc_out, enc_mask, log_probs=True):
+        dec_inp = tgt_seq
+
+        dec_inp_T = dec_inp.transpose(0, 1)
+        enc_out_T = enc_out.transpose(0, 1)
+        enc_mask_T = enc_mask.transpose(0, 1)
+
+        dec_pred_T, ctx.memory_cache = self.decoder(dec_inp_T, enc_out_T, enc_mask_T, *ctx.memory_cache)
+        dec_pred = dec_pred_T.transpose(0, 1).contiguous()
+
+        return self.generator(dec_pred, log_probs=log_probs)
 
     def decode(self, tgt_seq, dec_states, log_probs=True):
 

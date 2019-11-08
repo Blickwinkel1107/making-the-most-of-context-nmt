@@ -123,13 +123,44 @@ def prepare_data(seqs_x, seqs_y=None, cuda=False, batch_first=True):
 
     return x, y
 
+#added by yx 20191108
+def src_doc_seq_add_eos_bos(src_seqs: list):
+    SEP_id = ctx.vocab_tgt.token2id('<SEP>')
+
+    split_res = []
+    seq_no = 0
+    for seq in src_seqs:
+        last_sep_index = 0
+        for i in range(len(seq)):
+            if seq[i] == SEP_id:
+                sent = seq[last_sep_index:i]  # last start word ~ word before SEP
+                if len(split_res) < seq_no + 1:
+                    split_res.append([])
+                    split_res[seq_no] += sent
+                else:
+                    split_res[seq_no] += [EOS, BOS] + sent
+                last_sep_index = i + 1
+        seq_no += 1
+    return split_res
+
+def src_doc_sents_map(src_seqs: torch.Tensor):
+    sent_mapping = src_seqs.tolist()
+    for i in range(len(sent_mapping)):
+        n_sents = 0
+        for j in range(len(sent_mapping[i])):
+            id = sent_mapping[i][j]
+            if id == BOS:
+                n_sents += 1
+            sent_mapping[i][j] = n_sents
+    res = torch.tensor(sent_mapping).detach()
+    return res
+
 #added by yx 20191107
 def tgt_doc_seq_split(tgt_seqs: list):
     SEP_id = ctx.vocab_tgt.token2id('<SEP>')
     BOS_id = BOS
     EOS_id = EOS
 
-    # split_res = [ [] ]*len(tgt_seqs)    #[[],[],[]]
     split_res = []
     dec_batch = []
     seq_no = 0
@@ -174,24 +205,37 @@ def compute_forward(model,
     if not eval:
         model.train()
         critic.train()
+        with torch.enable_grad():
+            enc_out, enc_mask = model.encoder(seqs_x)
     else:
         model.eval()
         critic.eval()
+        with torch.no_grad():
+            enc_out, enc_mask = model.encoder(seqs_x)
+
+    sents_mapping = src_doc_sents_map(seqs_x)
+
+    n_sents = 0
     for y_sents in y_dec_batch:
+        n_sents += 1
         y_inp = y_sents[:, :-1].contiguous()
         y_label = y_sents[:, 1:].contiguous()
+
+        # mask all non-current sentences
+        is_not_current_sents = sents_mapping.detach().ne(n_sents)
+        current_sent_mask = torch.where(is_not_current_sents, is_not_current_sents, enc_mask)
 
         words_norm = y_label.ne(PAD).float().sum(1)
         if not eval:
             # For training
             with torch.enable_grad():
-                log_probs = model(seqs_x, y_inp)
+                log_probs = model.decode_train(y_inp, enc_out, current_sent_mask, log_probs=True)
                 loss = critic(inputs=log_probs, labels=y_label, reduce=False, normalization=normalization)
 
         else:
             # For compute loss
             with torch.no_grad():
-                log_probs = model(seqs_x, y_inp)
+                log_probs = model.decode_train(y_inp, enc_out, enc_mask, log_probs=True)
                 loss = critic(inputs=log_probs, labels=y_label, normalization=normalization, reduce=True)
 
         if norm_by_words:
@@ -228,8 +272,8 @@ def loss_validation(model, critic, valid_iterator):
 
         n_sents += len(seqs_x)
         n_tokens += sum(len(s) for s in seqs_y)
-
-        x = prepare_data(seqs_x, cuda=GlobalNames.USE_GPU)
+        x_add_eos_bos = src_doc_seq_add_eos_bos(seqs_x)
+        x = prepare_data(x_add_eos_bos, cuda=GlobalNames.USE_GPU)
         y_split = tgt_doc_seq_split(seqs_y)
         y_dec_batch = [ prepare_data(y_batch_untensored, cuda=GlobalNames.USE_GPU)
                        for y_batch_untensored in y_split ]
@@ -611,8 +655,8 @@ def train(FLAGS):
                 # Prepare data
                 for seqs_x_t, seqs_y_t in split_shard(seqs_x, seqs_y, split_size=training_configs['update_cycle']):
                     # x, y = prepare_data(seqs_x_t, seqs_y_t, cuda=GlobalNames.USE_GPU)
-
-                    x = prepare_data(seqs_x_t, cuda=GlobalNames.USE_GPU)
+                    x_add_eos_bos = src_doc_seq_add_eos_bos(seqs_x_t)
+                    x = prepare_data(x_add_eos_bos, cuda=GlobalNames.USE_GPU)
                     y_split = tgt_doc_seq_split(seqs_y_t)
                     y_dec_batch = [ prepare_data(y_batch_untensored, cuda=GlobalNames.USE_GPU)
                                    for y_batch_untensored in y_split ]
@@ -624,7 +668,9 @@ def train(FLAGS):
                                            eval=False,
                                            normalization=n_samples_t,
                                            norm_by_words=training_configs["norm_by_words"])
-                    train_loss += loss / x.size(1)
+                    train_loss += loss / \
+                                  ( sum( [ batch.size(0)*batch.size(1) for batch in y_dec_batch ] ) /
+                                    len(y_dec_batch)*x.size(0) )    #get avg loss per word
                 optim.step()
 
             except RuntimeError as e:
