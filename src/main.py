@@ -145,6 +145,7 @@ def src_doc_seq_add_eos_bos(src_seqs: list):
 
 def src_doc_sents_map(src_seqs: torch.Tensor):
     sent_mapping = src_seqs.tolist()
+    max_n_sents = 0
     for i in range(len(sent_mapping)):
         n_sents = 0
         for j in range(len(sent_mapping[i])):
@@ -152,8 +153,10 @@ def src_doc_sents_map(src_seqs: torch.Tensor):
             if id == BOS:
                 n_sents += 1
             sent_mapping[i][j] = n_sents
+        if max_n_sents < n_sents:
+            max_n_sents = n_sents
     res = torch.tensor(sent_mapping).detach()
-    return res
+    return res, max_n_sents
 
 #added by yx 20191107
 def tgt_doc_seq_split(tgt_seqs: list):
@@ -213,7 +216,7 @@ def compute_forward(model,
         with torch.no_grad():
             enc_out, enc_mask = model.encoder(seqs_x)
 
-    sents_mapping = src_doc_sents_map(seqs_x)
+    sents_mapping, _ = src_doc_sents_map(seqs_x)
 
     n_sents = 0
     for y_sents in y_dec_batch:
@@ -235,7 +238,7 @@ def compute_forward(model,
         else:
             # For compute loss
             with torch.no_grad():
-                log_probs = model.decode_train(y_inp, enc_out, enc_mask, log_probs=True)
+                log_probs = model.decode_train(y_inp, enc_out, current_sent_mask, log_probs=True)
                 loss = critic(inputs=log_probs, labels=y_label, normalization=normalization, reduce=True)
 
         if norm_by_words:
@@ -306,7 +309,7 @@ def bleu_validation(uidx,
     model.eval()
 
     numbers = []
-    trans = []
+    trans_docs = []
 
     infer_progress_bar = tqdm(total=len(valid_iterator),
                               desc=' - (Infer)  ',
@@ -325,40 +328,56 @@ def bleu_validation(uidx,
 
         infer_progress_bar.update(len(seqs_x))
 
-        x = prepare_data(seqs_x, cuda=GlobalNames.USE_GPU)
 
-        with torch.no_grad():
-            word_ids = beam_search(nmt_model=model, beam_size=beam_size, max_steps=max_steps, src_seqs=x, alpha=alpha)
+        x_add_eos_bos = src_doc_seq_add_eos_bos(seqs_x)
+        x = prepare_data(x_add_eos_bos, cuda=GlobalNames.USE_GPU)
+        sents_mapping, max_n_sents = src_doc_sents_map(x)
 
-        word_ids = word_ids.cpu().numpy().tolist()
+        enc_out, enc_mask = model.encoder(x)
 
-        # Append result
-        for sent_t in word_ids:
-            sent_t = [[wid for wid in line if wid != PAD] for line in sent_t]
-            x_tokens = []
+        trans_sents2doc = ['']*len(seq_nums)
+        for sent_no in range(1, max_n_sents+1):
+            # mask all non-current sentences
+            is_not_current_sents = sents_mapping.detach().ne(sent_no)
+            current_sent_mask = torch.where(is_not_current_sents, is_not_current_sents, enc_mask)
+            dec_state = {"ctx": enc_out, "ctx_mask": current_sent_mask}
 
-            for wid in sent_t[0]:
-                if wid == EOS:
-                    break
-                x_tokens.append(vocab_tgt.id2token(wid))
+            with torch.no_grad():
+                word_ids = beam_search(nmt_model=model, beam_size=beam_size, max_steps=max_steps, dec_state=dec_state, alpha=alpha)
 
-            if len(x_tokens) > 0:
-                trans.append(vocab_tgt.tokenizer.detokenize(x_tokens))
-            else:
-                trans.append('%s' % vocab_tgt.id2token(EOS))
+            word_ids = word_ids.cpu().numpy().tolist()
+
+            # Append result
+            iter_num = 0
+
+            for sent_t in word_ids:
+                sent_t = [[wid for wid in line if wid != PAD] for line in sent_t]
+                x_tokens = []
+
+                for wid in sent_t[0]:
+                    if wid == EOS:
+                        break
+                    x_tokens.append(vocab_tgt.id2token(wid))
+
+                if len(x_tokens) > 0:
+                    trans_sents2doc[iter_num] += vocab_tgt.tokenizer.detokenize(x_tokens)
+                else:
+                    trans_sents2doc[iter_num] += '%s' % vocab_tgt.id2token(EOS)
+                iter_num += 1
+        trans_docs.extend(trans_sents2doc)
 
     origin_order = np.argsort(numbers).tolist()
-    trans = [trans[ii] for ii in origin_order]
+    trans_docs = [trans_docs[ii] for ii in origin_order]
 
     infer_progress_bar.close()
 
     if not os.path.exists(valid_dir):
         os.mkdir(valid_dir)
 
-    hyp_path = os.path.join(valid_dir, 'trans.iter{0}.txt'.format(uidx))
+    hyp_path = os.path.join(valid_dir, 'trans_seqs.iter{0}.txt'.format(uidx))
 
     with open(hyp_path, 'w') as f:
-        for line in trans:
+        for line in trans_docs:
             f.write('%s\n' % line)
 
     with open(hyp_path) as f:

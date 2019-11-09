@@ -28,7 +28,7 @@ from .utils import mask_scores, tensor_gather_helper
 import src.context_cache as ctx
 
 
-def beam_search(nmt_model, beam_size, max_steps, src_seqs, alpha=-1.0):
+def beam_search(nmt_model, beam_size, max_steps, dec_state, alpha=-1.0):
     """
 
     Args:
@@ -41,16 +41,15 @@ def beam_search(nmt_model, beam_size, max_steps, src_seqs, alpha=-1.0):
 
     """
 
-    batch_size = src_seqs.size(0)
+    batch_size = dec_state["ctx"].size(0)
 
-    enc_outputs = nmt_model.encode(src_seqs)
-    init_dec_states = nmt_model.init_decoder(enc_outputs, expand_size=beam_size)
+    init_dec_states = nmt_model.init_decoder(dec_state, expand_size=beam_size)
 
     # Prepare for beam searching
-    beam_mask = src_seqs.new(batch_size, beam_size).fill_(1).float()
-    final_lengths = src_seqs.new(batch_size, beam_size).zero_().float()
-    beam_scores = src_seqs.new(batch_size, beam_size).zero_().float()
-    final_word_indices = src_seqs.new(batch_size, beam_size, 1).fill_(BOS)
+    beam_mask = dec_state["ctx"].new(batch_size, beam_size).fill_(1).float()
+    final_lengths = dec_state["ctx"].new(batch_size, beam_size).zero_().float()
+    beam_scores = dec_state["ctx"].new(batch_size, beam_size).zero_().float()
+    final_word_indices = dec_state["ctx"].new(batch_size, beam_size, 1).fill_(BOS).long()
 
     dec_states = init_dec_states
 
