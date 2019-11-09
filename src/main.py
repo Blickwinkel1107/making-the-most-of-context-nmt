@@ -319,8 +319,6 @@ def bleu_validation(uidx,
 
     for batch in valid_iter:
 
-        ctx.memory_cache = tuple()
-
         seq_nums = batch[0]
         numbers += seq_nums
 
@@ -336,6 +334,9 @@ def bleu_validation(uidx,
         enc_out, enc_mask = model.encoder(x)
 
         trans_sents2doc = ['']*len(seq_nums)
+
+        ctx.memory_cache = tuple()
+
         for sent_no in range(1, max_n_sents+1):
             # mask all non-current sentences
             is_not_current_sents = sents_mapping.detach().ne(sent_no)

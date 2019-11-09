@@ -682,12 +682,12 @@ class MemTransformerLM(nn.Module):
         # to `mlen + qlen - self.ext_len`.
         with torch.no_grad():
             new_mems = []
-            end_idx = mlen + max(0, qlen - 0 - self.ext_len)
-            beg_idx = max(0, end_idx - self.mem_len)
+            # end_idx = mlen + max(0, qlen - 0 - self.ext_len)
+            # beg_idx = max(0, end_idx - self.mem_len)
             for i in range(len(hids)):
-
-                cat = torch.cat([mems[i], hids[i]], dim=0)
-                new_mems.append(cat[beg_idx:end_idx].detach())
+                # cat = torch.cat([mems[i], hids[i]], dim=0)
+                # new_mems.append(cat[beg_idx:end_idx].detach())
+                new_mems.append(hids[i][:].detach())    #也就是只保留当前句子的memory情况
 
         return new_mems
 

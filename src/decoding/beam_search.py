@@ -53,10 +53,13 @@ def beam_search(nmt_model, beam_size, max_steps, dec_state, alpha=-1.0):
 
     dec_states = init_dec_states
 
-    for t in range(max_steps):
+    if ctx.memory_cache is None:
+        ctx.memory_cache = tuple()
 
-        if ctx.memory_cache is None:
-            ctx.memory_cache = tuple()
+    current_memory_cache = ctx.memory_cache
+
+    for t in range(max_steps):
+        ctx.memory_cache = current_memory_cache
 
         next_scores, dec_states = nmt_model.decode(final_word_indices.view(batch_size * beam_size, -1), dec_states)
 
