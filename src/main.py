@@ -156,6 +156,8 @@ def src_doc_sents_map(src_seqs: torch.Tensor):
         if max_n_sents < n_sents:
             max_n_sents = n_sents
     res = torch.tensor(sent_mapping).detach()
+    if GlobalNames.USE_GPU:
+        res = res.cuda()
     return res, max_n_sents
 
 #added by yx 20191107
@@ -650,15 +652,15 @@ def train(FLAGS):
             seqs_x, seqs_y = batch
 
             #####show sentence######
-            src_batch_sents = []
-            tgt_batch_sents = []
-            for sent in seqs_x:
-                src_batch_sents.append(vocab_src.ids2sent(sent))
-            for sent in seqs_y:
-                tgt_batch_sents.append(vocab_tgt.ids2sent(sent))
-
-            print(src_batch_sents)
-            print(tgt_batch_sents)
+            # src_batch_sents = []
+            # tgt_batch_sents = []
+            # for sent in seqs_x:
+            #     src_batch_sents.append(vocab_src.ids2sent(sent))
+            # for sent in seqs_y:
+            #     tgt_batch_sents.append(vocab_tgt.ids2sent(sent))
+            #
+            # print(src_batch_sents)
+            # print(tgt_batch_sents)
 
             ######################
 
