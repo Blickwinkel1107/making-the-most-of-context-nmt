@@ -183,9 +183,9 @@ class ContextMultiHeadAttn(nn.Module):
         attn_score.mul_(self.scale)
         if attn_mask is not None and attn_mask.any().item():
             if attn_mask.dim() == 2:
-                attn_score.masked_fill_(attn_mask[None,:,:,None], -float('inf'))
+                attn_score.masked_fill_(attn_mask[None,:,:,None], -1e18)
             elif attn_mask.dim() == 3:
-                attn_score.masked_fill_(attn_mask[:,:,:,None], -float('inf'))
+                attn_score.masked_fill_(attn_mask[:,:,:,None], -1e18)
 
         # [qlen x klen x bsz x n_head]
         attn_prob = F.softmax(attn_score, dim=1)
@@ -566,13 +566,17 @@ class AdaptiveEmbedding(nn.Module):
 
 class MemTransformerLM(nn.Module):
     def __init__(self, n_token, n_layer, n_head, d_model, d_head, d_inner,
-                 dropout, dropatt, tie_weight=True, d_embed=None, 
-                 div_val=1, tie_projs=[False], pre_lnorm=False,
-                 tgt_len=None, ext_len=None, mem_len=None, 
-                 cutoffs=[], adapt_inp=False,
-                 same_length=False, attn_type=0, clamp_len=-1, 
+                 dropout, dropatt, tie_weight=True, d_embed=None,
+                 div_val=1, tie_projs=None, pre_lnorm=False,
+                 tgt_len=None, ext_len=None, mem_len=None,
+                 cutoffs=None, adapt_inp=False,
+                 same_length=False, attn_type=0, clamp_len=-1,
                  sample_softmax=-1):
         super(MemTransformerLM, self).__init__()
+        if cutoffs is None:
+            cutoffs = []
+        if tie_projs is None:
+            tie_projs = [False]
         self.n_token = n_token
 
         d_embed = d_model if d_embed is None else d_embed
@@ -621,31 +625,6 @@ class MemTransformerLM(nn.Module):
                         n_head, d_model, d_head, d_inner, dropout,
                         dropatt=dropatt, pre_lnorm=pre_lnorm)
                 )
-
-        self.sample_softmax = sample_softmax
-        # use sampled softmax
-        if sample_softmax > 0:
-            self.out_layer = nn.Linear(d_model, n_token)
-            if tie_weight:
-                self.out_layer.weight = self.word_emb.weight
-            self.tie_weight = tie_weight
-            self.sampler = LogUniformSampler(n_token, sample_softmax)
-
-        # use adaptive softmax (including standard softmax)
-        else:
-            self.crit = ProjectedAdaptiveLogSoftmax(n_token, d_embed, d_model, 
-                                                    cutoffs, div_val=div_val)
-
-            if tie_weight:
-                for i in range(len(self.crit.out_layers)):
-                    self.crit.out_layers[i].weight = self.word_emb.emb_layers[i].weight
-
-            if tie_projs:
-                for i, tie_proj in enumerate(tie_projs):
-                    if tie_proj and div_val == 1 and d_model != d_embed:
-                        self.crit.out_projs[i] = self.word_emb.emb_projs[0]
-                    elif tie_proj and div_val != 1:
-                        self.crit.out_projs[i] = self.word_emb.emb_projs[i]
 
         self.same_length = same_length
         self.clamp_len = clamp_len
