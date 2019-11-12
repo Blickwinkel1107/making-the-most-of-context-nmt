@@ -491,12 +491,12 @@ class RelPartialLearnableDecoderLayer(nn.Module):
         self.pos_ff = PositionwiseFF(d_model, d_inner, dropout,
                                      pre_lnorm=kwargs.get('pre_lnorm'))
 
-    def forward(self, dec_inp, r, enc_out, r_w_bias, r_r_bias, dec_attn_mask=None, mems=None):
+    def forward(self, dec_inp, r, enc_out, enc_mask, r_w_bias, r_r_bias, dec_attn_mask=None, mems=None):
 
         output = self.dec_attn(dec_inp, r, r_w_bias, r_r_bias,
                                attn_mask=dec_attn_mask,
                                mems=mems)
-        output = self.ctx_attn(output, enc_out)
+        output = self.ctx_attn(output, enc_out, attn_mask=enc_mask)
         output = self.pos_ff(output)
 
         return output
@@ -692,7 +692,7 @@ class MemTransformerLM(nn.Module):
 
         return new_mems
 
-    def _forward(self, dec_inp, enc_out, mems=None):
+    def _forward(self, dec_inp, enc_out, enc_mask, mems=None):
         qlen, bsz = dec_inp.size()
 
         word_emb = self.word_emb(dec_inp)
@@ -726,7 +726,7 @@ class MemTransformerLM(nn.Module):
             hids.append(core_out)
             for i, layer in enumerate(self.layers):
                 mems_i = None if mems is None else mems[i]
-                core_out = layer(core_out, pos_emb, enc_out, self.r_w_bias,
+                core_out = layer(core_out, pos_emb, enc_out, enc_mask, self.r_w_bias,
                         self.r_r_bias, dec_attn_mask=dec_attn_mask, mems=mems_i)
                 hids.append(core_out)
         elif self.attn_type == 1: # learnable
@@ -787,13 +787,13 @@ class MemTransformerLM(nn.Module):
 
         return core_out, new_mems
 
-    def forward(self, dec_inp, enc_out, *mems):
+    def forward(self, dec_inp, enc_out, enc_mask, *mems):
         # nn.DataParallel does not allow size(0) tensors to be broadcasted.
         # So, have to initialize size(0) mems inside the model forward.
         # Moreover, have to return new_mems to allow nn.DataParallel to piece
         # them together.
         if not mems: mems = self.init_mems()
-        output, new_mems = self._forward(dec_inp, enc_out, mems=mems)
+        output, new_mems = self._forward(dec_inp, enc_out, enc_mask, mems=mems)
         return output, new_mems
 
 if __name__ == '__main__':

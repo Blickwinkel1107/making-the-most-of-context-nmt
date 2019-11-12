@@ -59,9 +59,12 @@ class D2D(NMTModel):
     def forward(self, src_seq, tgt_seq, log_probs=True):
         enc_output, enc_mask = self.encoder(src_seq)
         dec_inp = tgt_seq
-        dec_inp_T = dec_inp.transpose(0, 1).contiguous()
-        enc_out_T = enc_output.transpose(0, 1).contiguous()
-        dec_pred_T, ctx.memory_cache = self.decoder(dec_inp_T, enc_out_T, *ctx.memory_cache)
+
+        dec_inp_T = dec_inp.transpose(0, 1)
+        enc_out_T = enc_output.transpose(0, 1)
+        enc_mask_T = enc_mask.transpose(0, 1)
+
+        dec_pred_T, ctx.memory_cache = self.decoder(dec_inp_T, enc_out_T, enc_mask_T, *ctx.memory_cache)
         dec_pred =  dec_pred_T.transpose(0, 1).contiguous()
 
         return self.generator(dec_pred, log_probs=log_probs)
