@@ -44,18 +44,18 @@ optimizer_configs:
 
 training_configs:
   seed: 1234
-  max_epochs: 3
+  max_epochs: 100
   shuffle: true
   use_bucket: true
   batch_size: 10
   batching_key: "tokens"
-  update_cycle: 1
+  update_cycle: 4
   disp_freq: 5
   save_freq: 5
   num_kept_checkpoints: 1
-  loss_valid_freq: 5
+  loss_valid_freq: 50
   valid_batch_size: 1
-  bleu_valid_freq: 6
+  bleu_valid_freq: 51
   bleu_valid_batch_size: 1
   bleu_valid_warmup: 0
   bleu_valid_configs:

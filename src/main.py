@@ -531,8 +531,6 @@ def train(FLAGS):
                                      )
         for batch in training_iter:
 
-            ctx.memory_cache = tuple()  ## flush memory cache
-
             uidx += 1
 
             if optimizer_configs["schedule_method"] is not None and optimizer_configs["schedule_method"] != "loss":
@@ -565,6 +563,9 @@ def train(FLAGS):
             try:
                 # Prepare data
                 for seqs_x_t, seqs_y_t in split_shard(seqs_x, seqs_y, split_size=training_configs['update_cycle']):
+
+                    ctx.memory_cache = tuple()  ## flush memory cache
+
                     x, y = prepare_data(seqs_x_t, seqs_y_t, cuda=GlobalNames.USE_GPU)
 
                     loss = compute_forward(model=nmt_model,
