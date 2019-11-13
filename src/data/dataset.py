@@ -141,9 +141,6 @@ class Dataset(object):
 
         for lines in zip(*f_handles):
 
-            tgt = lines[1]
-            lines = lines[0].split('@@@@@')
-            lines.append(tgt)
             record = self._apply(*lines)
 
             if record is not None:

@@ -789,6 +789,8 @@ def translate(FLAGS):
     valid_iter = valid_iterator.build_generator()
     for batch in valid_iter:
 
+        ctx.memory_cache = tuple()
+
         numbers, seqs_x = batch
 
         batch_size_t = len(seqs_x)
