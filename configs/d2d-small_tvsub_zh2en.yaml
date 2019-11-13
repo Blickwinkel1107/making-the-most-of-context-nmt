@@ -49,7 +49,7 @@ training_configs:
   use_bucket: true
   batch_size: 2
   batching_key: "samples"
-  update_cycle: 1
+  update_cycle: 4
   disp_freq: 5
   save_freq: 5
   num_kept_checkpoints: 1
