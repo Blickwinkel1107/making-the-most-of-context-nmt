@@ -162,18 +162,16 @@ def src_doc_sents_map(src_seqs: torch.Tensor):
 
 #added by yx 20191107
 def tgt_doc_seq_split(tgt_seqs: list):
-    SEP_id = ctx.vocab_tgt.token2id('<SEP>')
-    BOS_id = BOS
-    EOS_id = EOS
 
     split_res = []
     dec_batch = []
     seq_no = 0
     for seq in tgt_seqs:
         last_sep_index = 0
+        seq = [BOS]+seq+[EOS]
         for i in range(len(seq)):
-            if seq[i] == SEP_id:
-                sent = seq[last_sep_index:i]  #last start word ~ word before SEP
+            if seq[i] == EOS:
+                sent = seq[1+last_sep_index : i]  #word after BOS ~ word before EOS
                 if len(split_res) < seq_no + 1:
                     split_res.append([])
                 split_res[seq_no].append(sent)
@@ -277,8 +275,8 @@ def loss_validation(model, critic, valid_iterator):
 
         n_sents += len(seqs_x)
         n_tokens += sum(len(s) for s in seqs_y)
-        x_add_eos_bos = src_doc_seq_add_eos_bos(seqs_x)
-        x = prepare_data(x_add_eos_bos, cuda=GlobalNames.USE_GPU)
+        # x_add_eos_bos = src_doc_seq_add_eos_bos(seqs_x)
+        x = prepare_data(seqs_x, cuda=GlobalNames.USE_GPU)
         y_split = tgt_doc_seq_split(seqs_y)
         y_dec_batch = [ prepare_data(y_batch_untensored, cuda=GlobalNames.USE_GPU)
                        for y_batch_untensored in y_split ]
@@ -329,13 +327,15 @@ def bleu_validation(uidx,
         infer_progress_bar.update(len(seqs_x))
 
 
-        x_add_eos_bos = src_doc_seq_add_eos_bos(seqs_x)
-        x = prepare_data(x_add_eos_bos, cuda=GlobalNames.USE_GPU)
+        # x_add_eos_bos = src_doc_seq_add_eos_bos(seqs_x)
+        x = prepare_data(seqs_x, cuda=GlobalNames.USE_GPU)
         sents_mapping, max_n_sents = src_doc_sents_map(x)
 
         enc_out, enc_mask = model.encoder(x)
 
-        trans_sents2doc = ['']*len(seq_nums)
+        trans_sents2doc = []
+        for i in range(len(seq_nums)):
+            trans_sents2doc.append( [] )
 
         ctx.memory_cache = tuple()
 
@@ -363,24 +363,30 @@ def bleu_validation(uidx,
                     x_tokens.append(vocab_tgt.id2token(wid))
 
                 if len(x_tokens) > 0:
-                    trans_sents2doc[iter_num] += vocab_tgt.tokenizer.detokenize(x_tokens)
+                    trans_sents2doc[iter_num].append( vocab_tgt.tokenizer.detokenize(x_tokens) )
                 else:
-                    trans_sents2doc[iter_num] += '%s' % vocab_tgt.id2token(EOS)
+                    trans_sents2doc[iter_num].append( '%s' % vocab_tgt.id2token(EOS) )
                 iter_num += 1
         trans_docs.extend(trans_sents2doc)
 
     origin_order = np.argsort(numbers).tolist()
     trans_docs = [trans_docs[ii] for ii in origin_order]
 
+    trans_sents = []
+    for trans_doc in trans_docs:
+        for trans_sent in trans_doc:
+            trans_sents.append(trans_sent)
+    #split doc trans results into sents
+
     infer_progress_bar.close()
 
     if not os.path.exists(valid_dir):
         os.mkdir(valid_dir)
 
-    hyp_path = os.path.join(valid_dir, 'trans_seqs.iter{0}.txt'.format(uidx))
+    hyp_path = os.path.join(valid_dir, 'trans.iter{0}.txt'.format(uidx))
 
     with open(hyp_path, 'w') as f:
-        for line in trans_docs:
+        for line in trans_sents:
             f.write('%s\n' % line)
 
     with open(hyp_path) as f:
@@ -652,15 +658,15 @@ def train(FLAGS):
             seqs_x, seqs_y = batch
 
             #####show sentence######
-            # src_batch_sents = []
-            # tgt_batch_sents = []
-            # for sent in seqs_x:
-            #     src_batch_sents.append(vocab_src.ids2sent(sent))
-            # for sent in seqs_y:
-            #     tgt_batch_sents.append(vocab_tgt.ids2sent(sent))
-            #
-            # print(src_batch_sents)
-            # print(tgt_batch_sents)
+            src_batch_sents = []
+            tgt_batch_sents = []
+            for sent in seqs_x:
+                src_batch_sents.append(vocab_src.ids2sent(sent))
+            for sent in seqs_y:
+                tgt_batch_sents.append(vocab_tgt.ids2sent(sent))
+
+            print(src_batch_sents)
+            print(tgt_batch_sents)
 
             ######################
 
@@ -677,8 +683,8 @@ def train(FLAGS):
                 # Prepare data
                 for seqs_x_t, seqs_y_t in split_shard(seqs_x, seqs_y, split_size=training_configs['update_cycle']):
                     # x, y = prepare_data(seqs_x_t, seqs_y_t, cuda=GlobalNames.USE_GPU)
-                    x_add_eos_bos = src_doc_seq_add_eos_bos(seqs_x_t)
-                    x = prepare_data(x_add_eos_bos, cuda=GlobalNames.USE_GPU)
+                    # x_add_eos_bos = src_doc_seq_add_eos_bos(seqs_x_t)
+                    x = prepare_data(seqs_x_t, cuda=GlobalNames.USE_GPU)
                     y_split = tgt_doc_seq_split(seqs_y_t)
                     y_dec_batch = [ prepare_data(y_batch_untensored, cuda=GlobalNames.USE_GPU)
                                    for y_batch_untensored in y_split ]
