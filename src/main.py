@@ -219,6 +219,7 @@ def compute_forward(model,
 
     sents_mapping, _ = src_doc_sents_map(seqs_x)
 
+    sents_No = 0
     n_sents = 0
     for y_sents in y_dec_batch:
     #     #####show sentence######
@@ -227,20 +228,17 @@ def compute_forward(model,
     #         sent = sent.tolist()
     #         tgt_batch_sents.append(ctx.vocab_tgt.ids2sent(sent))
     #     print(tgt_batch_sents)
-    #     if tgt_batch_sents[0] == "<BOS> Don 't cry . <EOS>":
-    #         print(tgt_batch_sents)
-    #         input()
 
-        n_sents += 1
+        n_sents += y_sents.size(0)
+        sents_No += 1
 
         y_inp = y_sents[:, :-1].contiguous()
         y_label = y_sents[:, 1:].contiguous()
 
         # mask all non-current sentences
-        is_not_current_sents = sents_mapping.detach().ne(n_sents)
+        is_not_current_sents = sents_mapping.detach().ne(sents_No)
         current_sent_mask = torch.where(is_not_current_sents, is_not_current_sents, enc_mask)
 
-        words_norm = y_label.ne(PAD).float().sum(1)
         if not eval:
             # For training
             with torch.enable_grad():
@@ -254,6 +252,7 @@ def compute_forward(model,
                 loss = critic(inputs=log_probs, labels=y_label, normalization=normalization, reduce=True)
 
         if norm_by_words:
+            words_norm = y_label.ne(PAD).float().sum(1)
             loss = loss.div(words_norm).sum()
         else:
             loss = loss.sum()
@@ -261,7 +260,7 @@ def compute_forward(model,
     # end of for-LOOP
 
     if not eval:
-        torch.autograd.backward(total_loss)
+        torch.autograd.backward(total_loss / n_sents)
     return total_loss.item()
 
 
@@ -274,6 +273,7 @@ def loss_validation(model, critic, valid_iterator):
     :type valid_iterator: DataIterator
     """
 
+    n_seqs = 0
     n_sents = 0
     n_tokens = 0.0
 
@@ -285,8 +285,10 @@ def loss_validation(model, critic, valid_iterator):
 
         ctx.memory_cache = tuple()  ##flush cache
 
-        n_sents += len(seqs_x)
+        n_seqs += len(seqs_x)
         n_tokens += sum(len(s) for s in seqs_y)
+        n_sents_of_current_seq = sum( [ seq.count(BOS)+1 for seq in seqs_x ] )
+        n_sents += n_sents_of_current_seq
         # x_add_eos_bos = src_doc_seq_add_eos_bos(seqs_x)
         x = prepare_data(seqs_x, cuda=GlobalNames.USE_GPU)
         y_split = tgt_doc_seq_split(seqs_y)
@@ -304,7 +306,8 @@ def loss_validation(model, critic, valid_iterator):
 
         sum_loss += float(loss)
 
-    return float(sum_loss / n_sents)
+    # return float(sum_loss / n_seqs )
+    return float(sum_loss / n_sents )
 
 
 def bleu_validation(uidx,
