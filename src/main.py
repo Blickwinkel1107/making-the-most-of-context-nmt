@@ -162,16 +162,16 @@ def src_doc_sents_map(src_seqs: torch.Tensor):
 
 #added by yx 20191107
 def tgt_doc_seq_split(tgt_seqs: list):
-
     split_res = []
-    dec_batch = []
     seq_no = 0
     for seq in tgt_seqs:
         last_sep_index = 0
         seq = [BOS]+seq+[EOS]
         for i in range(len(seq)):
             if seq[i] == EOS:
-                sent = seq[1+last_sep_index : i]  #word after BOS ~ word before EOS
+                sent = seq[ 1+last_sep_index : i ]  #word after BOS ~ word before EOS
+                # if BOS not in sent and EOS not in sent:
+                #     sent = [BOS] + sent + [EOS]
                 if len(split_res) < seq_no + 1:
                     split_res.append([])
                 split_res[seq_no].append(sent)
@@ -185,7 +185,8 @@ def tgt_doc_seq_split(tgt_seqs: list):
         while ext_len != 0:
             split_res[i] += [ [] ]
             ext_len -= 1
-    dec_batch = np.array(split_res).transpose()
+    dec_batch = list(map(list, zip(*split_res)))    #transpose!
+    # dec_batch = np.array(split_res).transpose()
     return dec_batch
 
 
@@ -220,7 +221,18 @@ def compute_forward(model,
 
     n_sents = 0
     for y_sents in y_dec_batch:
+    #     #####show sentence######
+    #     tgt_batch_sents = []
+    #     for sent in y_sents:
+    #         sent = sent.tolist()
+    #         tgt_batch_sents.append(ctx.vocab_tgt.ids2sent(sent))
+    #     print(tgt_batch_sents)
+    #     if tgt_batch_sents[0] == "<BOS> Don 't cry . <EOS>":
+    #         print(tgt_batch_sents)
+    #         input()
+
         n_sents += 1
+
         y_inp = y_sents[:, :-1].contiguous()
         y_label = y_sents[:, 1:].contiguous()
 
@@ -658,15 +670,15 @@ def train(FLAGS):
             seqs_x, seqs_y = batch
 
             #####show sentence######
-            src_batch_sents = []
-            tgt_batch_sents = []
-            for sent in seqs_x:
-                src_batch_sents.append(vocab_src.ids2sent(sent))
-            for sent in seqs_y:
-                tgt_batch_sents.append(vocab_tgt.ids2sent(sent))
-
-            print(src_batch_sents)
-            print(tgt_batch_sents)
+            # src_batch_sents = []
+            # tgt_batch_sents = []
+            # for sent in seqs_x:
+            #     src_batch_sents.append(vocab_src.ids2sent(sent))
+            # for sent in seqs_y:
+            #     tgt_batch_sents.append(vocab_tgt.ids2sent(sent))
+            #
+            # print(src_batch_sents)
+            # print(tgt_batch_sents)
 
             ######################
 
@@ -696,9 +708,9 @@ def train(FLAGS):
                                            eval=False,
                                            normalization=n_samples_t,
                                            norm_by_words=training_configs["norm_by_words"])
-                    train_loss += loss / \
-                                  ( sum( [ batch.size(0)*batch.size(1) for batch in y_dec_batch ] ) /
-                                    len(y_dec_batch)*x.size(0) )    #get avg loss per word
+                    total_words = sum( [ batch.size(0)*batch.size(1) for batch in y_dec_batch ] )
+                    train_loss += loss / total_words
+                                     #get avg loss per word
                 optim.step()
 
             except RuntimeError as e:

@@ -28,8 +28,8 @@ class WordTokenizer(_Tokenizer):
         return sent.strip().split()
 
     def detokenize(self, tokens):
-        return ' '.join(tokens)
-
+        # return ' '.join(tokens)
+        return re.sub(r"@@\s|@@$", "", " ".join(tokens))
 
 class BPETokenizer(_Tokenizer):
 
