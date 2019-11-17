@@ -169,7 +169,7 @@ class ContextMultiHeadAttn(nn.Module):
         # [hlen x bsz x n_head x d_head]
         if self.pre_lnorm:
             ##### layer normalization
-            h = self.layer_norm(h)
+            c = self.layer_norm(c)
 
         head_q = self.q_net(h)
         head_k, head_v = torch.chunk(self.kv_net(c), 2, -1)

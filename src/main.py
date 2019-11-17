@@ -238,6 +238,7 @@ def compute_forward(model,
         # mask all non-current sentences
         is_not_current_sents = sents_mapping.detach().ne(sents_No)
         current_sent_mask = torch.where(is_not_current_sents, is_not_current_sents, enc_mask)
+        ctx.memory_mask = y_sents.eq(PAD).detach()
 
         if not eval:
             # For training

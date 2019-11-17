@@ -25,7 +25,7 @@ class D2D(NMTModel):
                                         dropout=dropout, dropatt=dropout,
                                         d_inner=d_inner_hid, attn_type=0,
                                         tgt_len=tgt_len, mem_len=mem_len, ext_len=ext_len,
-                                        pre_lnorm=False)
+                                        pre_lnorm=True)
         self.decoder.apply(weights_init)
         self.decoder.word_emb.apply(weights_init)
 
