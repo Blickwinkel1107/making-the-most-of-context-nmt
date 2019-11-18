@@ -5,6 +5,6 @@ ENABLE_CONTEXT = True
 
 memory_cache = tuple()
 tmp_memory_cache = tuple()
-
+memory_mask = tuple()
 
 

@@ -143,7 +143,7 @@ class MultiHeadAttn(nn.Module):
 # added by yx 20191102
 class ContextMultiHeadAttn(nn.Module):
     def __init__(self, n_head, d_model, d_head, dropout, dropatt=0,
-                 pre_lnorm=False):
+                 pre_lnorm=True):
         super(ContextMultiHeadAttn, self).__init__()
 
         self.n_head = n_head
@@ -169,7 +169,7 @@ class ContextMultiHeadAttn(nn.Module):
         # [hlen x bsz x n_head x d_head]
         if self.pre_lnorm:
             ##### layer normalization
-            c = self.layer_norm(c)
+            h = self.layer_norm(h)
 
         head_q = self.q_net(h)
         head_k, head_v = torch.chunk(self.kv_net(c), 2, -1)
