@@ -28,18 +28,6 @@ class D2D(NMTModel):
                                         )
         self.decoder.apply(weights_init)
         self.decoder.word_emb.apply(weights_init)
-        # self.decoder = Decoder(
-        #     n_tgt_vocab, n_layers=n_layers, n_head=n_head,
-        #     d_word_vec=d_word_vec, d_model=d_model,
-        #     d_inner_hid=d_inner_hid, dropout=dropout, dim_per_head=dim_per_head)
-
-        # model = MemTransformerLM(args.n_token, args.n_layer, args.n_head,
-        #                          args.d_model, args.d_head, args.d_inner, args.dropout,
-        #                          dropatt=args.dropout, tie_weight=True,
-        #                          d_embed=d_embed, div_val=div_val,
-        #                          tie_projs=tie_projs, pre_lnorm=True,
-        #                          tgt_len=tgt_len, ext_len=ext_len, mem_len=mem_len,
-        #                          cutoffs=cutoffs, attn_type=0).to(device)
 
         self.dropout = nn.Dropout(dropout)
 
@@ -82,11 +70,13 @@ class D2D(NMTModel):
         slf_attn_caches = dec_states['slf_attn_caches']
 
         dec_inp = tgt_seq
-        dec_inp_T = dec_inp.transpose(0, 1).contiguous()
-        enc_out_T = enc_output.transpose(0, 1).contiguous()
+
+        dec_inp_T = dec_inp.transpose(0, 1)
+        enc_out_T = enc_output.transpose(0, 1)
+        enc_mask_T = enc_output_mask.transpose(0, 1)
 
         # dec_output, slf_attn_caches, enc_attn_caches = self.decoder(tgt_seq, )
-        dec_pred_T, ctx.memory_cache = self.decoder(dec_inp_T, enc_out_T, *ctx.memory_cache)
+        dec_pred_T, ctx.memory_cache = self.decoder(dec_inp_T, enc_out_T, enc_mask_T, *ctx.memory_cache)
         dec_pred = dec_pred_T.transpose(0, 1).contiguous()
 
         next_scores = self.generator(dec_pred[:, -1].contiguous(), log_probs=log_probs)
