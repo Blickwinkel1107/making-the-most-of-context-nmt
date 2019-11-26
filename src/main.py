@@ -123,6 +123,18 @@ def prepare_data(seqs_x, seqs_y=None, cuda=False, batch_first=True):
 
     return x, y
 
+
+def prepare_data_doc(seqs_x):
+    # seqs_x: 2D list (n_doc, doc_seqs)
+    # return : 3D list (n_sent, tensor(n_doc, sent_seqs))
+    x_split = tgt_doc_seq_split(seqs_x) # (n_sent, n_doc, sent_seqs)
+    x_batch = [prepare_data(x_batch_untensored, cuda=GlobalNames.USE_GPU)
+        for x_batch_untensored in x_split] # 
+
+    # 3D list (n_sent, tensor(n_doc, sent_seqs))
+    return x_batch
+
+
 #added by yx 20191108
 def src_doc_seq_add_eos_bos(src_seqs: list):
     SEP_id = ctx.vocab_tgt.token2id('<SEP>')
@@ -193,8 +205,9 @@ def tgt_doc_seq_split(tgt_seqs: list):
 
 def compute_forward(model,
                     critic,
-                    seqs_x,
-                    y_dec_batch,
+                    x_batch,
+                    y_batch,
+                    seqs_x=None,
                     eval=False,
                     normalization=1.0,
                     norm_by_words=False
@@ -209,19 +222,25 @@ def compute_forward(model,
     if not eval:
         model.train()
         critic.train()
-        with torch.enable_grad():
-            enc_out, enc_mask = model.encoder(seqs_x)
     else:
         model.eval()
         critic.eval()
-        with torch.no_grad():
+
+    if ctx.GLOBAL_ENCODING:
+        with torch.set_grad_enabled(not eval):
             enc_out, enc_mask = model.encoder(seqs_x)
+        sents_mapping, _ = src_doc_sents_map(seqs_x)
 
-    sents_mapping, _ = src_doc_sents_map(seqs_x)
+    n_sents = len(x_batch)
+    n_docs = x_batch[0].size(0) 
 
-    sents_No = 0
-    n_sents = 0
-    for y_sents in y_dec_batch:
+    ctx.memory_cache = tuple()
+    ctx.memory_mask = None
+
+    for sents_no, (x_sents, y_sents) in enumerate(zip(x_batch, y_batch)):
+    # x_sents, y_sents: tensor(n_doc, n_words)    
+        
+        
     #     #####show sentence######
     #     tgt_batch_sents = []
     #     for sent in y_sents:
@@ -230,27 +249,33 @@ def compute_forward(model,
     #     print(tgt_batch_sents)
 
         n_sents += y_sents.size(0)
-        sents_No += 1
 
         y_inp = y_sents[:, :-1].contiguous()
         y_label = y_sents[:, 1:].contiguous()
 
         # mask all non-current sentences
-        is_not_current_sents = sents_mapping.detach().ne(sents_No)
-        current_sent_mask = torch.where(is_not_current_sents, is_not_current_sents, enc_mask)
-        ctx.memory_mask = y_sents.eq(PAD).detach()
+        if ctx.GLOBAL_ENCODING:
+            is_not_current_sents = sents_mapping.detach().ne(sents_no+1)
+            current_sent_mask = torch.where(is_not_current_sents, is_not_current_sents, enc_mask)
+        else:
+            # encode current sentence
+            with torch.set_grad_enabled(not eval):
+                enc_out, current_sent_mask = model.encoder(x_sents)
 
         if not eval:
             # For training
             with torch.enable_grad():
                 log_probs = model.decode_train(y_inp, enc_out, current_sent_mask, log_probs=True)
-                loss = critic(inputs=log_probs, labels=y_label, reduce=False, normalization=normalization)
+                loss = critic(inputs=log_probs, labels=y_label, reduce=False, normalization=1)
 
         else:
             # For compute loss
             with torch.no_grad():
                 log_probs = model.decode_train(y_inp, enc_out, current_sent_mask, log_probs=True)
                 loss = critic(inputs=log_probs, labels=y_label, normalization=normalization, reduce=True)
+
+        # @zzx (2019-11-22)： build mem mask for last sentences
+        ctx.memory_mask = y_label.eq(PAD).view(-1, y_label.size(-1)).transpose(0, 1)
 
         if norm_by_words:
             words_norm = y_label.ne(PAD).float().sum(1)
@@ -261,7 +286,7 @@ def compute_forward(model,
     # end of for-LOOP
 
     if not eval:
-        torch.autograd.backward(total_loss / n_sents)
+        torch.autograd.backward(total_loss / (n_sents * n_docs))
     return total_loss.item()
 
 
@@ -292,14 +317,16 @@ def loss_validation(model, critic, valid_iterator):
         n_sents += n_sents_of_current_seq
         # x_add_eos_bos = src_doc_seq_add_eos_bos(seqs_x)
         x = prepare_data(seqs_x, cuda=GlobalNames.USE_GPU)
-        y_split = tgt_doc_seq_split(seqs_y)
-        y_dec_batch = [ prepare_data(y_batch_untensored, cuda=GlobalNames.USE_GPU)
-                       for y_batch_untensored in y_split ]
+        # y_split = tgt_doc_seq_split(seqs_y)
+        # y_dec_batch = [ prepare_data(y_batch_untensored, cuda=GlobalNames.USE_GPU)
+        #                for y_batch_untensored in y_split ]
+        x_batch, y_batch = prepare_data_doc(seqs_x), prepare_data_doc(seqs_y)
 
         loss = compute_forward(model=model,
                                critic=critic,
                                seqs_x=x,
-                               y_dec_batch=y_dec_batch,
+                               x_batch=x_batch,
+                               y_batch=y_batch,
                                eval=True)
 
         if np.isnan(loss):
@@ -344,25 +371,34 @@ def bleu_validation(uidx,
 
 
         # x_add_eos_bos = src_doc_seq_add_eos_bos(seqs_x)
-        x = prepare_data(seqs_x, cuda=GlobalNames.USE_GPU)
-        sents_mapping, max_n_sents = src_doc_sents_map(x)
+        if ctx.GLOBAL_ENCODING:
+            x = prepare_data(seqs_x, cuda=GlobalNames.USE_GPU)
+            sents_mapping, max_n_sents = src_doc_sents_map(x)
+            enc_out, enc_mask = model.encoder(x)
 
-        enc_out, enc_mask = model.encoder(x)
+        x_batch = prepare_data_doc(seqs_x)
 
         trans_sents2doc = []
         for i in range(len(seq_nums)):
             trans_sents2doc.append( [] )
 
         ctx.memory_cache = tuple()
+        ctx.memory_mask = None
 
-        for sent_no in range(1, max_n_sents+1):
+        for sents_no, x_sents in enumerate(x_batch):
             # mask all non-current sentences
-            is_not_current_sents = sents_mapping.detach().ne(sent_no)
-            current_sent_mask = torch.where(is_not_current_sents, is_not_current_sents, enc_mask)
-            dec_state = {"ctx": enc_out, "ctx_mask": current_sent_mask}
+            if ctx.GLOBAL_ENCODING:
+                is_not_current_sents = sents_mapping.detach().ne(sents_no+1)
+                current_sent_mask = torch.where(is_not_current_sents, is_not_current_sents, enc_mask)
+            else:
+                # encode current sentence
+                with torch.set_grad_enabled(False):
+                    enc_out, current_sent_mask = model.encoder(x_sents)
 
             with torch.no_grad():
+                dec_state = {"ctx": enc_out, "ctx_mask": current_sent_mask}
                 word_ids = beam_search(nmt_model=model, beam_size=beam_size, max_steps=max_steps, dec_state=dec_state, alpha=alpha)
+                ctx.memory_mask = word_ids.eq(PAD).view(-1, word_ids.size(-1)).transpose(0, 1)
 
             word_ids = word_ids.cpu().numpy().tolist()
 
@@ -380,8 +416,10 @@ def bleu_validation(uidx,
 
                 if len(x_tokens) > 0:
                     trans_sents2doc[iter_num].append( vocab_tgt.tokenizer.detokenize(x_tokens) )
-                else:
-                    trans_sents2doc[iter_num].append( '%s' % vocab_tgt.id2token(EOS) )
+                # @zzx (2019-11-22): adding eos for empty-results (from all-padded source) 
+                # leads to extra translation output. Just skip it
+                # else:
+                #     trans_sents2doc[iter_num].append( '%s' % vocab_tgt.id2token(EOS) )
                 iter_num += 1
         trans_docs.extend(trans_sents2doc)
 
@@ -481,6 +519,7 @@ def train(FLAGS):
     optimizer_configs = configs['optimizer_configs']
     training_configs = configs['training_configs']
     ctx.ENABLE_CONTEXT = model_configs['enable_history_context']
+    ctx.GLOBAL_ENCODING = model_configs['enable_global_encoding']
 
     GlobalNames.SEED = training_configs['seed']
 
@@ -664,7 +703,7 @@ def train(FLAGS):
                                      )
         for batch in training_iter:
 
-            ctx.memory_cache = tuple()  ## flush memory cache
+            # ctx.memory_cache = tuple()  ## flush memory cache
 
             uidx += 1
 
@@ -701,19 +740,18 @@ def train(FLAGS):
                     # x, y = prepare_data(seqs_x_t, seqs_y_t, cuda=GlobalNames.USE_GPU)
                     # x_add_eos_bos = src_doc_seq_add_eos_bos(seqs_x_t)
                     x = prepare_data(seqs_x_t, cuda=GlobalNames.USE_GPU)
-                    y_split = tgt_doc_seq_split(seqs_y_t)
-                    y_dec_batch = [ prepare_data(y_batch_untensored, cuda=GlobalNames.USE_GPU)
-                                   for y_batch_untensored in y_split ]
+                    x_batch, y_batch = prepare_data_doc(seqs_x_t), prepare_data_doc(seqs_y_t)
 
                     loss = compute_forward(model=nmt_model,
                                            critic=critic,
                                            seqs_x=x,
-                                           y_dec_batch=y_dec_batch,
+                                           x_batch=x_batch,
+                                           y_batch=y_batch,
                                            eval=False,
-                                           normalization=n_samples_t,
+                                           normalization=1,
                                            norm_by_words=training_configs["norm_by_words"])
-                    total_words = sum( [ batch.size(0)*batch.size(1) for batch in y_dec_batch ] )
-                    train_loss += loss / total_words
+                    # total_words = sum( [ batch.size(0)*batch.size(1) for batch in y_batch ] )
+                    train_loss += loss / n_words_t
                                      #get avg loss per word
                 optim.step()
 
@@ -861,6 +899,7 @@ def train(FLAGS):
             break
 
 
+# TODO: implement translate 
 def translate(FLAGS):
     GlobalNames.USE_GPU = FLAGS.use_gpu
 

@@ -11,6 +11,7 @@ import torch.nn.functional as F
 from src.modules.transformer_xl_utils.proj_adaptive_softmax import ProjectedAdaptiveLogSoftmax
 from src.modules.transformer_xl_utils.log_uniform_sampler import LogUniformSampler, sample_logits
 import src.context_cache as ctx
+from src.data.vocabulary import PAD, EOS
 
 class PositionalEmbedding(nn.Module):
     def __init__(self, demb):
@@ -169,7 +170,7 @@ class ContextMultiHeadAttn(nn.Module):
         # [hlen x bsz x n_head x d_head]
         if self.pre_lnorm:
             ##### layer normalization
-            c = self.layer_norm(c)
+            h = self.layer_norm(h)
 
         head_q = self.q_net(h)
         head_k, head_v = torch.chunk(self.kv_net(c), 2, -1)
@@ -309,17 +310,29 @@ class RelPartialLearnableMultiHeadAttn(RelMultiHeadAttn):
         klen = w_head_k.size(0)
 
         w_head_q = w_head_q.view(qlen, bsz, self.n_head, self.d_head)           # qlen x bsz x n_head x d_head
-        w_head_k = w_head_k.view(klen, bsz, self.n_head, self.d_head)           # qlen x bsz x n_head x d_head
-        w_head_v = w_head_v.view(klen, bsz, self.n_head, self.d_head)           # qlen x bsz x n_head x d_head
+        w_head_k = w_head_k.view(klen, bsz, self.n_head, self.d_head)           # klen x bsz x n_head x d_head
+        w_head_v = w_head_v.view(klen, bsz, self.n_head, self.d_head)           # klen x bsz x n_head x d_head
 
-        r_head_k = r_head_k.view(rlen, self.n_head, self.d_head)                # qlen x n_head x d_head
 
         #### compute attention score
         rw_head_q = w_head_q + r_w_bias                                         # qlen x bsz x n_head x d_head
         AC = torch.einsum('ibnd,jbnd->ijbn', (rw_head_q, w_head_k))             # qlen x klen x bsz x n_head
 
+
         rr_head_q = w_head_q + r_r_bias
-        BD = torch.einsum('ibnd,jnd->ijbn', (rr_head_q, r_head_k))              # qlen x klen x bsz x n_head
+
+        if r.dim() == 2: # [klen, d] 
+            # @zzx (2019-11-21): original version
+            r_head_k = r_head_k.view(rlen, self.n_head, self.d_head)                # klen x n_head x d_head
+            BD = torch.einsum('ibnd,jnd->ijbn', (rr_head_q, r_head_k))              # qlen x klen x bsz x n_head
+
+        elif r.dim() == 3: # [klen, bsz, d]
+            # @zzx (2019-11-21): when pos_emb (r) being fixed wrt padding, 
+            # it becomes 3-dim, where a batch dim is added.
+            r_head_k = r_head_k.view(rlen, bsz, self.n_head, self.d_head)                # klen x n_head x d_head
+            BD = torch.einsum('ibnd,jbnd->ijbn', (rr_head_q, r_head_k))              # qlen x klen x bsz x n_head
+#            attn_mask = self._rel_shift(attn_mask[:,:,:,None].expand_as(BD))
+
         BD = self._rel_shift(BD)
 
         # [qlen x klen x bsz x n_head]
@@ -334,12 +347,16 @@ class RelPartialLearnableMultiHeadAttn(RelMultiHeadAttn):
             elif attn_mask.dim() == 3:
                 attn_score = attn_score.float().masked_fill(
                     attn_mask[:,:,:,None], -float('inf')).type_as(attn_score)
+            elif attn_mask.dim() == 4: # @zzx: useless, ignore it
+                attn_score = attn_score.float().masked_fill(
+                    attn_mask, -float('inf')).type_as(attn_score)
 
         # [qlen x klen x bsz x n_head]
         attn_prob = F.softmax(attn_score, dim=1)
         attn_prob = self.dropatt(attn_prob)
 
         #### compute attention vector
+#        print(attn_prob.size(), w_head_v.size())
         attn_vec = torch.einsum('ijbn,jbnd->ibnd', (attn_prob, w_head_v))
 
         # [qlen x bsz x n_head x d_head]
@@ -691,6 +708,38 @@ class MemTransformerLM(nn.Module):
 
         return new_mems
 
+    @staticmethod 
+    def _shift_mem_pos_seq(pos_seq, mem_mask):
+		# pos_seq: [mlen+qlen] 
+        # mem_mask: [mlen, bsz] 1 for padding
+        mlen, bsz = mem_mask.size()
+        qlen = pos_seq.size(0) - mlen
+
+        pad_num = mem_mask.to(pos_seq).sum(0) # [bsz]
+        # [mlen+qlen, bsz]
+        pad_num_seq = torch.cat([pad_num[None, :].expand(mlen, bsz), pos_seq.new_zeros((qlen, bsz))],
+                                 dim=0)
+        new_pos_seq = pos_seq[:, None] - pad_num_seq
+        return new_pos_seq
+
+    @staticmethod 
+    def _shift_pad_pos_seq(pos_seq, mem_mask, tgt_mask):
+		# pos_seq: [mlen+qlen] 
+        # mem_mask: [mlen, bsz] 1 for padding
+        # tgt_mask: [qlen, bsz] 1 for padding
+        mlen, bsz = mem_mask.size()
+        qlen = pos_seq.size(0) - mlen
+
+        mem_pad_num = mem_mask.to(pos_seq).sum(0) # [bsz]
+        tgt_pad_num = tgt_mask.to(pos_seq).sum(0) # [bsz]
+        # [mlen+qlen, bsz]
+        pad_num_seq = torch.cat([mem_pad_num[None, :].expand(mlen, bsz),
+                                 tgt_pad_num[None, :].expand(qlen, bsz)], 
+                                 dim=0)
+        new_pos_seq = pos_seq[:, None] - pad_num_seq
+        return new_pos_seq
+        
+
     def _forward(self, dec_inp, enc_out, enc_mask, mems=None):
         qlen, bsz = dec_inp.size()
 
@@ -708,16 +757,37 @@ class MemTransformerLM(nn.Module):
             dec_attn_mask = (torch.triu(all_ones, 1+mlen)
                     + torch.tril(all_ones, -mask_shift_len)).byte()[:, :, None] # -1
         else:
+            # [qlen, mlen+qlen, 1]  
             dec_attn_mask = torch.triu(
                 word_emb.new_ones(qlen, klen), diagonal=1+mlen).byte()[:,:,None]
+            if ctx.ENABLE_CONTEXT and ctx.memory_mask is not None:
+                mem_mask = ctx.memory_mask # [mlen, bsz]
+                new_mem_mask = torch.cat(
+                    [mem_mask, mem_mask.new_full((qlen, bsz), 0)],
+                    dim=0)  # [mlen+qlen, bsz]
+                dec_attn_mask = (dec_attn_mask + new_mem_mask[None, :, :]).gt(0)
 
         hids = []
-        if self.attn_type == 0: # default
-            pos_seq = torch.arange(klen-1, -1, -1.0, device=word_emb.device, 
+        if self.attn_type == 0:  # default
+            pos_seq = torch.arange(klen-1, -1, -1.0, device=word_emb.device,
                                    dtype=word_emb.dtype)
+
+            # added by zzx 2019-11-21
+            # dealing with Padding problem within position embeddings
+            if ctx.ENABLE_CONTEXT and ctx.memory_mask is not None:
+                mem_mask = ctx.memory_mask # [mlen, bsz]
+                tgt_mask = torch.gt((dec_inp.eq(PAD)+dec_inp.eq(EOS)), 0) # [qlen bsz]
+                # [klen, bsz]
+                pos_seq = self._shift_pad_pos_seq(pos_seq, mem_mask, tgt_mask)
+
             if self.clamp_len > 0:
-                pos_seq.clamp_(max=self.clamp_len)
-            pos_emb = self.pos_emb(pos_seq)
+                pos_seq.clamp_(max=self.clamp_len, min=0)
+
+            if ctx.ENABLE_CONTEXT and ctx.memory_mask is not None:
+                pos_emb = self.pos_emb(pos_seq.view(-1)).view(klen, bsz, -1) # [klen, bsz, d]
+            else: 
+                pos_emb = self.pos_emb(pos_seq) # [klen, 1, d]
+                pos_emb = pos_emb.squeeze(1) # [klen, d] batch==1
 
             core_out = self.drop(word_emb)
             pos_emb = self.drop(pos_emb)
