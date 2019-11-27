@@ -398,7 +398,7 @@ def bleu_validation(uidx,
             with torch.no_grad():
                 dec_state = {"ctx": enc_out, "ctx_mask": current_sent_mask}
                 word_ids = beam_search(nmt_model=model, beam_size=beam_size, max_steps=max_steps, dec_state=dec_state, alpha=alpha)
-                ctx.memory_mask = word_ids.eq(PAD).view(-1, word_ids.size(-1)).transpose(0, 1)
+                # ctx.memory_mask = word_ids.eq(PAD).view(-1, word_ids.size(-1)).transpose(0, 1)
 
             word_ids = word_ids.cpu().numpy().tolist()
 
