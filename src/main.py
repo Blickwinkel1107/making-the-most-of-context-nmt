@@ -160,7 +160,7 @@ def src_doc_sents_map(src_seqs: torch.Tensor):
     sent_rank = deepcopy(sent_mapping)
     max_n_sents = 0
     for i in range(len(sent_mapping)):
-        n_sents = 0
+        n_sents = -1
         cur_rank = 0
         for j in range(len(sent_mapping[i])):
             id = sent_mapping[i][j]
@@ -235,7 +235,7 @@ def compute_forward(model,
     if ctx.GLOBAL_ENCODING:
         sents_mapping, sent_rank, _ = src_doc_sents_map(seqs_x)
         with torch.set_grad_enabled(not eval):
-            enc_out, enc_mask = model.encoder(seqs_x, position=sent_rank)
+            enc_out, enc_mask = model.encoder(seqs_x, position=sent_rank, segment_ids=sents_mapping)
 
     n_sents = len(x_batch)
     n_docs = x_batch[0].size(0) 
@@ -261,7 +261,7 @@ def compute_forward(model,
 
         # mask all non-current sentences
         if ctx.GLOBAL_ENCODING:
-            is_not_current_sents = sents_mapping.detach().ne(sents_no+1)
+            is_not_current_sents = sents_mapping.detach().ne(sents_no)
             current_sent_mask = torch.where(is_not_current_sents, is_not_current_sents, enc_mask)
         else:
             # encode current sentence
@@ -383,7 +383,7 @@ def bleu_validation(uidx,
             # enc_out, enc_mask = model.encoder(x)
             sents_mapping, sent_rank, _ = src_doc_sents_map(x)
             with torch.set_grad_enabled(False):
-                enc_out, enc_mask = model.encoder(x, position=sent_rank)
+                enc_out, enc_mask = model.encoder(x, position=sent_rank, segment_ids=sents_mapping)
 
         x_batch = prepare_data_doc(seqs_x)
 
@@ -397,7 +397,7 @@ def bleu_validation(uidx,
         for sents_no, x_sents in enumerate(x_batch):
             # mask all non-current sentences
             if ctx.GLOBAL_ENCODING:
-                is_not_current_sents = sents_mapping.detach().ne(sents_no+1)
+                is_not_current_sents = sents_mapping.detach().ne(sents_no)
                 current_sent_mask = torch.where(is_not_current_sents, is_not_current_sents, enc_mask)
             else:
                 # encode current sentence

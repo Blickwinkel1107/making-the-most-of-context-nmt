@@ -5,8 +5,9 @@ from src.models import transformer
 from src.models.mem_transformer import *
 from src.modules.transformer_xl_utils.parameter_init import weights_init
 from src.modules.embeddings import Embeddings
-from src.modules.position_embedding import PositionalEmbedding
+from src.modules.position_embedding import PositionalEmbedding, SegmentEmbedding
 from src.decoding.utils import tile_batch, tensor_gather_helper
+from src.utils import nest
 
 
 class Encoder(transformer.Encoder):
@@ -17,14 +18,23 @@ class Encoder(transformer.Encoder):
                                      embedding_dim=kwargs["d_word_vec"],
                                      dropout=False,
                                      add_position_embedding=False)
-        self.pos_emb = PositionalEmbedding(kwargs["d_word_vec"], dropout=kwargs["dropout"])
         self.reset_position = kwargs.get("reset_encoder_position", False)
+        self.pos_emb = PositionalEmbedding(kwargs["d_word_vec"], dropout=kwargs["dropout"])
 
-    def forward(self, src_seq, position=None):
+        self.segment_embed = SegmentEmbedding(
+            kwargs["d_word_vec"],
+            max_segment=kwargs["max_encoder_segment_embedding"]) \
+            if kwargs["max_encoder_segment_embedding"] > 0 \
+            else None
+
+    def forward(self, src_seq, position=None, segment_ids=None):
         # Word embedding look up
         batch_size, src_len = src_seq.size()
 
         emb = self.embeddings(src_seq)
+        if segment_ids is not None and self.segment_embed is not None:
+            seg_emb = self.segment_embed(segment_ids)
+            emb += seg_emb
         emb = self.pos_emb(emb, pos_seq=position if self.reset_position else None)
 
         enc_mask = src_seq.detach().eq(PAD)
@@ -51,7 +61,7 @@ class D2D(NMTModel):
         self.encoder = Encoder(
             n_src_vocab=n_src_vocab, n_layers=n_layers, n_head=n_head,
             d_word_vec=d_word_vec, d_model=d_model,
-            d_inner_hid=d_inner_hid, dropout=dropout, dim_per_head=dim_per_head)
+            d_inner_hid=d_inner_hid, dropout=dropout, dim_per_head=dim_per_head, **kwargs)
 
         tgt_len, mem_len, ext_len = 4, 4, 0
 
