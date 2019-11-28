@@ -1,9 +1,45 @@
 import src.context_cache as ctx
 
-from .transformer import *
+from src.models.base import NMTModel
+from src.models import transformer
 from src.models.mem_transformer import *
 from src.modules.transformer_xl_utils.parameter_init import weights_init
+from src.modules.embeddings import Embeddings
+from src.modules.position_embedding import PositionalEmbedding
+from src.decoding.utils import tile_batch, tensor_gather_helper
 
+
+class Encoder(transformer.Encoder):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.embeddings = Embeddings(num_embeddings=kwargs["n_src_vocab"],
+                                     embedding_dim=kwargs["d_word_vec"],
+                                     dropout=False,
+                                     add_position_embedding=False)
+        self.pos_emb = PositionalEmbedding(kwargs["d_word_vec"], dropout=kwargs["dropout"])
+        self.reset_position = kwargs.get("reset_encoder_position", False)
+
+    def forward(self, src_seq, position=None):
+        # Word embedding look up
+        batch_size, src_len = src_seq.size()
+
+        emb = self.embeddings(src_seq)
+        emb = self.pos_emb(emb, pos_seq=position if self.reset_position else None)
+
+        enc_mask = src_seq.detach().eq(PAD)
+        enc_slf_attn_mask = enc_mask.unsqueeze(1).expand(batch_size, src_len, src_len)
+
+        out = emb
+
+        for i in range(self.num_layers):
+            out = self.block_stack[i](out, enc_slf_attn_mask)
+
+        out = self.layer_norm(out)
+
+        return out, enc_mask
+    
+    
 class D2D(NMTModel):
     def __init__(
             self, n_src_vocab, n_tgt_vocab, n_layers=6, n_head=8,
@@ -13,7 +49,7 @@ class D2D(NMTModel):
         super(D2D, self).__init__()
 
         self.encoder = Encoder(
-            n_src_vocab, n_layers=n_layers, n_head=n_head,
+            n_src_vocab=n_src_vocab, n_layers=n_layers, n_head=n_head,
             d_word_vec=d_word_vec, d_model=d_model,
             d_inner_hid=d_inner_hid, dropout=dropout, dim_per_head=dim_per_head)
 
@@ -36,13 +72,14 @@ class D2D(NMTModel):
              the dimensions of all module output shall be the same.'
 
         if proj_share_weight:
-            self.generator = Generator(n_words=n_tgt_vocab,
-                                       hidden_size=d_word_vec,
-                                       shared_weight=self.decoder.word_emb.emb_layers[0].weight,
-                                       padding_idx=PAD)
+            self.generator = transformer.Generator(n_words=n_tgt_vocab,
+                                                   hidden_size=d_word_vec,
+                                                   shared_weight=self.decoder.word_emb.emb_layers[0].weight,
+                                                   padding_idx=PAD)
 
         else:
-            self.generator = Generator(n_words=n_tgt_vocab, hidden_size=d_word_vec, padding_idx=PAD)
+            self.generator = transformer.Generator(
+                n_words=n_tgt_vocab, hidden_size=d_word_vec, padding_idx=PAD)
 
     def forward(self, src_seq, tgt_seq, log_probs=True):
         enc_output, enc_mask = self.encoder(src_seq)

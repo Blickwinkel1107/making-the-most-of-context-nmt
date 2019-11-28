@@ -157,20 +157,26 @@ def src_doc_seq_add_eos_bos(src_seqs: list):
 
 def src_doc_sents_map(src_seqs: torch.Tensor):
     sent_mapping = src_seqs.tolist()
+    sent_rank = deepcopy(sent_mapping)
     max_n_sents = 0
     for i in range(len(sent_mapping)):
         n_sents = 0
+        cur_rank = 0
         for j in range(len(sent_mapping[i])):
             id = sent_mapping[i][j]
             if id == BOS:
                 n_sents += 1
+                cur_rank = 0
             sent_mapping[i][j] = n_sents
+            sent_rank[i][j] = cur_rank
+            cur_rank += 1
         if max_n_sents < n_sents:
             max_n_sents = n_sents
     res = torch.tensor(sent_mapping).detach()
+    sent_rank = torch.tensor(sent_rank, dtype=torch.float32, device=src_seqs.device)
     if GlobalNames.USE_GPU:
         res = res.cuda()
-    return res, max_n_sents
+    return res, sent_rank, max_n_sents
 
 #added by yx 20191107
 def tgt_doc_seq_split(tgt_seqs: list):
@@ -227,9 +233,9 @@ def compute_forward(model,
         critic.eval()
 
     if ctx.GLOBAL_ENCODING:
+        sents_mapping, sent_rank, _ = src_doc_sents_map(seqs_x)
         with torch.set_grad_enabled(not eval):
-            enc_out, enc_mask = model.encoder(seqs_x)
-        sents_mapping, _ = src_doc_sents_map(seqs_x)
+            enc_out, enc_mask = model.encoder(seqs_x, position=sent_rank)
 
     n_sents = len(x_batch)
     n_docs = x_batch[0].size(0) 
@@ -373,8 +379,11 @@ def bleu_validation(uidx,
         # x_add_eos_bos = src_doc_seq_add_eos_bos(seqs_x)
         if ctx.GLOBAL_ENCODING:
             x = prepare_data(seqs_x, cuda=GlobalNames.USE_GPU)
-            sents_mapping, max_n_sents = src_doc_sents_map(x)
-            enc_out, enc_mask = model.encoder(x)
+            # sents_mapping, max_n_sents = src_doc_sents_map(x)
+            # enc_out, enc_mask = model.encoder(x)
+            sents_mapping, sent_rank, _ = src_doc_sents_map(x)
+            with torch.set_grad_enabled(False):
+                enc_out, enc_mask = model.encoder(x, position=sent_rank)
 
         x_batch = prepare_data_doc(seqs_x)
 
@@ -683,6 +692,7 @@ def train(FLAGS):
     cum_samples = 0
     cum_words = 0
     valid_loss = best_valid_loss = float('inf') # Max Float
+    valid_bleu = best_valid_bleu = 0 
     saving_files = []
 
     # Timer for computing speed
@@ -726,6 +736,7 @@ def train(FLAGS):
             ######################
 
             n_samples_t = len(seqs_x)
+            n_words_s = sum(len(s) for s in seqs_x)
             n_words_t = sum(len(s) for s in seqs_y)
 
             cum_samples += n_samples_t
@@ -769,7 +780,8 @@ def train(FLAGS):
             training_progress_bar.update(n_samples_t)
             training_progress_bar.set_description(' - (Epc {}, Upd {}) '.format(eidx, uidx))
             training_progress_bar.set_postfix_str(
-                'TrainLoss: {:.2f}, ValidLoss(best): {:.2f} ({:.2f})'.format(train_loss, valid_loss, best_valid_loss))
+                'train: {:.2f}, valid(bst): {:.2f}({:.2f}), BLEU(bst): {:.2f}({:.2f})'
+                .format(train_loss, valid_loss, best_valid_loss, valid_bleu, best_valid_bleu))
             summary_writer.add_scalar("train_loss", scalar_value=train_loss, global_step=uidx)
 
             # ================================================================================== #
