@@ -1,20 +1,21 @@
 #!/usr/bin/env bash
 
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=3
 
 echo "Using GPU $CUDA_VISIBLE_DEVICES..."
 
-python -m src.bin.train \
-    --model_name "transformer" \
-    --reload \
-    --config_path "./configs/dl4mt_nist_zh2en.yx.yaml" \
-    --log_path "./log" \
-    --saveto "./save/"
+MODEL_NAME=
+CONFIG="./configs/d2d_iwslt15_zh2en.yaml"
+SAVETO="./save/"
 
-# python -m src.bin.train \
-#     --model_name "transformer" \
-#     --reload \
-#     --config_path "./configs/transformer_base_config.yaml" \
-#     --log_path "./log" \
-#     --saveto "./save/" \
-#     --use_gpu
+mkdir -p $SAVETO
+cp $CONFIG $SAVETO/configs.yaml
+
+python -m src.bin.train \
+    --model_name ${MODEL_NAME} \
+    --reload \
+    --config_path ${CONFIG} \
+    --log_path "/home/zzheng/experiments/njunmt/docmt/tblogs/${MODEL_NAME}" \
+    --saveto ${SAVETO} \
+    --use_gpu
+    # --pretrain_path "/home/zzheng/experiments/njunmt/docmt/s2s.best.bleu11.6loss75" \

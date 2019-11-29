@@ -1,16 +1,21 @@
 #!/usr/bin/env bash
-export CUDA_VISIBLE_DEVICES=2
+export CUDA_VISIBLE_DEVICES=0
 
-N=$1
+export MODEL_NAME="D2D"
 
-export MODEL_NAME="transformer"
+SOURCE_PATH="/home/zzheng/data/mt/IWSLT15.zh-en/docs_data/dev.zh.doc.bpe.20"
+SAVEDIR="./results"
+SAVETO="$SAVEDIR/trans.txt"
+mkdir -p $SAVEDIR
 
-python src.bin.translate \
+python -m src.bin.translate \
     --model_name $MODEL_NAME \
-    --source_path "/home/weihr/NMT_DATA_PY3/1.34M/unittest/MT0$1/src.txt" \
-    --model_path "./save/$MODEL_NAME.best.tpz" \
-    --config_path "./configs.yaml" \
-    --batch_size 20 \
+    --source_path ${SOURCE_PATH} \
+    --model_path "./save/$MODEL_NAME.best.final" \
+    --config_path "./save/configs.yaml" \
+    --batch_size 1 \
     --beam_size 5 \
-    --saveto "./result/$MODEL_NAME.MT0$1.txt" \
+    --saveto $SAVETO \
     --use_gpu
+
+sacrebleu -lc -tok none $REFERENCE_PATH < $SAVETO
