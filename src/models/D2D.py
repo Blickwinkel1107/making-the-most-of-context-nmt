@@ -27,6 +27,18 @@ class Encoder(transformer.Encoder):
             if kwargs["max_encoder_segment_embedding"] > 0 \
             else None
 
+        self.reset_params()
+
+    def reset_params(self):
+        scale = self.embeddings.scale
+        nn.init.normal_(self.embeddings.embeddings.weight,
+                        mean=0, std=1/scale)
+        nn.init.constant_(self.embeddings.weight[self.embeddings.padding_idx], 0)
+        if self.segment_embed is not None:
+            nn.init.normal_(self.segment_embed.weight,
+                            mean=0, std=1/scale)
+
+
     def forward(self, src_seq, position=None, segment_ids=None):
         # Word embedding look up
         batch_size, src_len = src_seq.size()
