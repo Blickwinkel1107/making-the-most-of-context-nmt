@@ -1,13 +1,41 @@
-import src.context_cache as ctx
+import sys
+import math
+import functools
 
+import numpy as np
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+torch.set_printoptions(threshold=10000000)
+
+import src.context_cache as ctx
 from src.models.base import NMTModel
 from src.models import transformer
-from src.models.mem_transformer import *
+from src.models.mem_transformer import MemTransformerLM
 from src.modules.transformer_xl_utils.parameter_init import weights_init
 from src.modules.embeddings import Embeddings
 from src.modules.position_embedding import PositionalEmbedding, SegmentEmbedding
 from src.decoding.utils import tile_batch, tensor_gather_helper
 from src.utils import nest
+from src.modules.sublayers import MultiHeadedAttention, PositionwiseFeedForward
+from src.data.vocabulary import PAD, EOS, BOS
+
+
+class EncoderBlock(nn.Module):
+    def __init__(self, d_model, d_inner_hid, n_head, dim_per_head, dropout=0.1, **kwargs):
+        super().__init__()
+        self.layer_norm = nn.LayerNorm(d_model)
+        self.slf_attn = MultiHeadedAttention(head_count=n_head, model_dim=d_model, dropout=dropout,
+                                             dim_per_head=dim_per_head)
+        self.pos_ffn = PositionwiseFeedForward(size=d_model, hidden_size=d_inner_hid, dropout=dropout)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, enc_input, slf_attn_mask=None):
+        input_norm = self.layer_norm(enc_input)
+        context, _, _ = self.slf_attn(input_norm, input_norm, input_norm, slf_attn_mask)
+        out = self.dropout(context) + enc_input
+        return self.pos_ffn(out)
 
 
 class Encoder(transformer.Encoder):
@@ -27,6 +55,36 @@ class Encoder(transformer.Encoder):
             if kwargs["max_encoder_segment_embedding"] > 0 \
             else None
 
+        self.mix_local_global = kwargs.get("mix_encoder_local_global_attention", False)
+        if self.mix_local_global:
+            self.global_encoder_layer = EncoderBlock(**kwargs)
+
+        self.reset_params()
+
+    def reset_params(self):
+        scale = self.embeddings.scale
+        nn.init.normal_(self.embeddings.embeddings.weight,
+                        mean=0, std=1/scale)
+        nn.init.constant_(self.embeddings.embeddings.weight[self.embeddings.padding_idx], 0)
+        if self.segment_embed is not None:
+            nn.init.normal_(self.segment_embed.embed.weight,
+                            mean=0, std=1/scale)
+
+    def build_local_mask(self, segment_ids, enc_mask):
+        # segment_ids: [bsz, len]. [[0,0,0,1,1,1,2,2,2,2...], ...]
+        # enc_mask: [bsz, qlen, mlen] (qlen==mlen)
+        # return: [bsz, qlen, mlen] (qlen==mlen). [[[0,0,0,1,1,1,1,1,1,1...], [1,1,1,0,0,0,1,1,1,1...],...]]
+        local_mask = []
+        for i in range(segment_ids.size(-1)):
+            # [bsz, mlen]
+            local_mask.append(
+                segment_ids.ne(
+                    segment_ids[:, i:i+1].expand_as(segment_ids)
+                )
+            )
+        local_mask = torch.stack(local_mask, 1)
+        return (local_mask + enc_mask).gt(0)
+
     def forward(self, src_seq, position=None, segment_ids=None):
         # Word embedding look up
         batch_size, src_len = src_seq.size()
@@ -39,14 +97,19 @@ class Encoder(transformer.Encoder):
 
         enc_mask = src_seq.detach().eq(PAD)
         enc_slf_attn_mask = enc_mask.unsqueeze(1).expand(batch_size, src_len, src_len)
+        if self.mix_local_global:
+            local_self_attn_mask = self.build_local_mask(segment_ids, enc_slf_attn_mask)
 
         out = emb
-
         for i in range(self.num_layers):
-            out = self.block_stack[i](out, enc_slf_attn_mask)
+            out = self.block_stack[i](
+                out,
+                enc_slf_attn_mask if not self.mix_local_global else local_self_attn_mask)
+
+        if self.mix_local_global:
+            out = self.global_encoder_layer(out, enc_slf_attn_mask)
 
         out = self.layer_norm(out)
-
         return out, enc_mask
     
     
