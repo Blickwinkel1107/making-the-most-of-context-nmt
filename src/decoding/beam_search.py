@@ -52,6 +52,8 @@ def beam_search(nmt_model, beam_size, max_steps, dec_state, alpha=-1.0):
     final_word_indices = dec_state["ctx"].new(batch_size, beam_size, 1).fill_(BOS).long()
 
     dec_states = init_dec_states
+    
+    src_empty_mask = (1 - dec_states["ctx_mask"].float()).sum(-1).eq(0).view(batch_size, beam_size) # [batch, beam] 1 means empty
 
     if ctx.memory_cache is None:
         ctx.memory_cache = tuple()
@@ -115,7 +117,7 @@ def beam_search(nmt_model, beam_size, max_steps, dec_state, alpha=-1.0):
 
         # If next_word_ids is EOS, beam_mask_ should be 0.0
         beam_mask_ = 1.0 - next_word_ids.eq(EOS).float()
-        next_word_ids.masked_fill_((beam_mask_ + beam_mask).eq(0.0),
+        next_word_ids.masked_fill_(((beam_mask_ + beam_mask).eq(0.0) + src_empty_mask).gt(0),
                                    PAD)  # If last step a EOS is already generated, we replace the last token as PAD
         beam_mask = beam_mask * beam_mask_
 
@@ -134,9 +136,49 @@ def beam_search(nmt_model, beam_size, max_steps, dec_state, alpha=-1.0):
         scores = beam_scores / final_lengths
 
     _, reranked_ids = torch.sort(scores, dim=-1, descending=False)
+    
 
-    return tensor_gather_helper(gather_indices=reranked_ids,
+    final_word_indices = tensor_gather_helper(gather_indices=reranked_ids,
                                 gather_from=final_word_indices[:, :, 1:].contiguous(),
                                 batch_size=batch_size,
                                 beam_size=beam_size,
                                 gather_shape=[batch_size * beam_size, -1])
+
+    # @zzx (2019-11-20): leave only best beam
+    if ctx.memory_cache:
+        # [bsz, beam, len, d] 
+        length = final_word_indices.size(-1)
+        new_mems = [rerank_tensor(cache.transpose(0, 1).view(batch_size, beam_size, length, -1), reranked_ids) for cache in ctx.memory_cache]
+        # [len, bsz*beam, d]
+        new_mems_best = [leave_best_beam_and_repeat(mem).view(batch_size*beam_size, length, -1).transpose(0, 1) for mem in new_mems] 
+        # [len, bsz*beam, d]
+        ctx.memory_cache = new_mems_best 
+
+        # [bsz, beam, len]
+        best_word_indices = leave_best_beam_and_repeat(final_word_indices)
+        # [len, bsz*beam]
+        ctx.memory_mask = best_word_indices.eq(PAD).view(batch_size*beam_size, -1).transpose(0, 1)
+    
+    return final_word_indices
+
+
+def rerank_tensor(tensor, reranked_ids):
+    # tensor [batch, beam, ...]
+    # reranked_ids [batch, beam]
+    sizes = tensor.size()
+    bsz, beam_size = reranked_ids.size()
+    _tensor = tensor.reshape(bsz, beam_size, -1)
+    reranked_tensor = torch.gather(
+        _tensor, 1, reranked_ids[:, :, None].expand_as(_tensor))
+    # return [batch, beam, ...] as tensor
+    return reranked_tensor.reshape(*sizes)
+
+
+def leave_best_beam_and_repeat(tensor):
+    # tensor [batch, beam, ...]
+    sizes = tensor.size()
+    bsz, beam_size = sizes[0], sizes[1]
+    _tensor = tensor.reshape(bsz, beam_size, -1)
+    # return [batch, beam, ...] as tensor
+    return _tensor[:, 0, :].repeat(1, beam_size, 1).reshape(*sizes)
+

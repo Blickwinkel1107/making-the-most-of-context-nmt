@@ -75,7 +75,7 @@ class Encoder(nn.Module):
 
     def __init__(
             self, n_src_vocab, n_layers=6, n_head=8,
-            d_word_vec=512, d_model=512, d_inner_hid=1024, dropout=0.1, dim_per_head=None):
+            d_word_vec=512, d_model=512, d_inner_hid=1024, dropout=0.1, dim_per_head=None, **kwargs):
         super().__init__()
 
         self.num_layers = n_layers
