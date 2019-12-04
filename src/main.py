@@ -278,7 +278,7 @@ def compute_forward(model,
             # For compute loss
             with torch.no_grad():
                 log_probs = model.decode_train(y_inp, enc_out, current_sent_mask, log_probs=True)
-                loss = critic(inputs=log_probs, labels=y_label, normalization=normalization, reduce=True)
+                loss = critic(inputs=log_probs, labels=y_label, normalization=1, reduce=True)
 
         # @zzx (2019-11-22)： build mem mask for last sentences
         ctx.memory_mask = y_label.eq(PAD).view(-1, y_label.size(-1)).transpose(0, 1)
@@ -292,7 +292,7 @@ def compute_forward(model,
     # end of for-LOOP
 
     if not eval:
-        torch.autograd.backward(total_loss / (n_sents * n_docs))
+        torch.autograd.backward(total_loss / normalization)
     return total_loss.item()
 
 
@@ -356,6 +356,7 @@ def bleu_validation(uidx,
                     alpha=-1.0
                     ):
     model.eval()
+    ctx.IS_INFERRING = True
 
     numbers = []
     trans_docs = []
@@ -431,6 +432,8 @@ def bleu_validation(uidx,
                 #     trans_sents2doc[iter_num].append( '%s' % vocab_tgt.id2token(EOS) )
                 iter_num += 1
         trans_docs.extend(trans_sents2doc)
+    
+    ctx.IS_INFERRING = False
 
     origin_order = np.argsort(numbers).tolist()
     trans_docs = [trans_docs[ii] for ii in origin_order]
@@ -759,7 +762,7 @@ def train(FLAGS):
                                            x_batch=x_batch,
                                            y_batch=y_batch,
                                            eval=False,
-                                           normalization=1,
+                                           normalization=n_samples_t*20, # assume that there are 20 sents per doc
                                            norm_by_words=training_configs["norm_by_words"])
                     # total_words = sum( [ batch.size(0)*batch.size(1) for batch in y_batch ] )
                     train_loss += loss / n_words_t
@@ -922,7 +925,8 @@ def translate(FLAGS):
     data_configs = configs['data_configs']
     model_configs = configs['model_configs']
     ctx.ENABLE_CONTEXT = model_configs['enable_history_context']
-    ctx.GLOBAL_ENCODING = model_configs['enable_global_encoding']
+    ctx.GLOBAL_ENCODING = model_configs['enable_global_encoding']   
+    ctx.IS_INFERRING = True
 
     timer = Timer()
     # ================================================================================== #
@@ -1033,6 +1037,8 @@ def translate(FLAGS):
 
         trans_docs.extend(trans_sents2doc)
         infer_progress_bar.update(batch_size_t)
+
+    ctx.IS_INFERRING = False
 
     origin_order = np.argsort(numbers).tolist()
     trans_docs = [trans_docs[ii] for ii in origin_order]

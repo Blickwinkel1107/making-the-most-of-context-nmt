@@ -165,6 +165,8 @@ class ContextMultiHeadAttn(nn.Module):
 
         self.pre_lnorm = pre_lnorm
 
+        self.attn_cache = None
+
     def forward(self, h, c, attn_mask=None):
         ##### multihead attention
         # [hlen x bsz x n_head x d_head]
@@ -173,11 +175,15 @@ class ContextMultiHeadAttn(nn.Module):
             h = self.layer_norm(h)
 
         head_q = self.q_net(h)
-        head_k, head_v = torch.chunk(self.kv_net(c), 2, -1)
-
         head_q = head_q.view(h.size(0), h.size(1), self.n_head, self.d_head)
-        head_k = head_k.view(c.size(0), c.size(1), self.n_head, self.d_head)
-        head_v = head_v.view(c.size(0), c.size(1), self.n_head, self.d_head)
+
+        if self.attn_cache is None:
+            head_k, head_v = torch.chunk(self.kv_net(c), 2, -1)
+            head_k = head_k.view(c.size(0), c.size(1), self.n_head, self.d_head)
+            head_v = head_v.view(c.size(0), c.size(1), self.n_head, self.d_head)
+            if ctx.IS_INFERRING: self.attn_cache = [head_k, head_v]
+        else:
+            head_k, head_v = self.attn_cache
 
         # [qlen x klen x bsz x n_head]
         attn_score = torch.einsum('ibnd,jbnd->ijbn', [head_q, head_k])

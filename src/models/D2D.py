@@ -175,8 +175,8 @@ class Encoder(nn.Module):
         out = emb
 
         if self.attn_type == "normal":
-            for i in range(self.num_layers):
-                out = self.block_stack[i](
+            for layer in self.block_stack:
+                out = layer(
                     out,
                     encoder_layer_mask)
 
@@ -184,8 +184,8 @@ class Encoder(nn.Module):
             # relative attention related
             src_len = emb.size(1)
             rel_k, rel_v = self._prepare_relative(src_len)
-            for i in range(self.num_layers):
-                out = self.block_stack[i](
+            for layer in self.block_stack:
+                out = layer(
                     out,
                     encoder_layer_mask,
                     rel_attn_kv=[rel_k, rel_v])
@@ -350,6 +350,10 @@ class D2D(NMTModel):
             "enc_attn_caches": None,
             "slf_attn_caches": None
         }
+
+    def finish_decoder(self):
+        for layer in self.decoder.layers:
+            layer.ctx_attn.attn_cache = None
 
     def reorder_dec_states(self, dec_states, new_beam_indices, beam_size):
 
