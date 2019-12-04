@@ -26,6 +26,9 @@ model_configs:
   enable_global_encoding: true # encoder: encode entire document or separate sentences
   reset_encoder_position: true
   max_encoder_segment_embedding: 20
+  encoder_attention_type: normal # [normal, relative]
+  global_encoder_attention_type: none # [none, normal, word-relative, segment-relative]
+  global_encoder_gate: false # toggle gating mechanism to fuse local&global output 
   n_layers: 4
   n_head: 4
   d_word_vec: 256
@@ -60,7 +63,7 @@ training_configs:
   valid_batch_size: 1
   bleu_valid_freq: 500
   bleu_valid_batch_size: 1
-  bleu_valid_warmup: 0
+  bleu_valid_warmup: 10
   bleu_valid_configs:
     max_steps: 150
     beam_size: 5

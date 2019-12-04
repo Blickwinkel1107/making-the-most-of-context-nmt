@@ -158,6 +158,8 @@ def beam_search(nmt_model, beam_size, max_steps, dec_state, alpha=-1.0):
         best_word_indices = leave_best_beam_and_repeat(final_word_indices)
         # [len, bsz*beam]
         ctx.memory_mask = best_word_indices.eq(PAD).view(batch_size*beam_size, -1).transpose(0, 1)
+
+    nmt_model.finish_decoder()
     
     return final_word_indices
 

@@ -278,7 +278,7 @@ def compute_forward(model,
             # For compute loss
             with torch.no_grad():
                 log_probs = model.decode_train(y_inp, enc_out, current_sent_mask, log_probs=True)
-                loss = critic(inputs=log_probs, labels=y_label, normalization=normalization, reduce=True)
+                loss = critic(inputs=log_probs, labels=y_label, normalization=1, reduce=True)
 
         # @zzx (2019-11-22)： build mem mask for last sentences
         ctx.memory_mask = y_label.eq(PAD).view(-1, y_label.size(-1)).transpose(0, 1)
@@ -292,7 +292,7 @@ def compute_forward(model,
     # end of for-LOOP
 
     if not eval:
-        torch.autograd.backward(total_loss / (n_sents * n_docs))
+        torch.autograd.backward(total_loss / normalization)
     return total_loss.item()
 
 
@@ -356,6 +356,7 @@ def bleu_validation(uidx,
                     alpha=-1.0
                     ):
     model.eval()
+    ctx.IS_INFERRING = True
 
     numbers = []
     trans_docs = []
@@ -431,6 +432,8 @@ def bleu_validation(uidx,
                 #     trans_sents2doc[iter_num].append( '%s' % vocab_tgt.id2token(EOS) )
                 iter_num += 1
         trans_docs.extend(trans_sents2doc)
+    
+    ctx.IS_INFERRING = False
 
     origin_order = np.argsort(numbers).tolist()
     trans_docs = [trans_docs[ii] for ii in origin_order]
@@ -759,7 +762,7 @@ def train(FLAGS):
                                            x_batch=x_batch,
                                            y_batch=y_batch,
                                            eval=False,
-                                           normalization=1,
+                                           normalization=n_samples_t*20, # assume that there are 20 sents per doc
                                            norm_by_words=training_configs["norm_by_words"])
                     # total_words = sum( [ batch.size(0)*batch.size(1) for batch in y_batch ] )
                     train_loss += loss / n_words_t
@@ -922,7 +925,8 @@ def translate(FLAGS):
     data_configs = configs['data_configs']
     model_configs = configs['model_configs']
     ctx.ENABLE_CONTEXT = model_configs['enable_history_context']
-    ctx.GLOBAL_ENCODING = model_configs['enable_global_encoding']
+    ctx.GLOBAL_ENCODING = model_configs['enable_global_encoding']   
+    ctx.IS_INFERRING = True
 
     timer = Timer()
     # ================================================================================== #
@@ -1024,24 +1028,17 @@ def translate(FLAGS):
 
             # Append result
             iter_num = 0
-
             for sent_t in word_ids:
-                sent_t = [[wid for wid in line if wid != PAD] for line in sent_t]
-                x_tokens = []
-
-                for wid in sent_t[0]:
-                    if wid == EOS:
-                        break
-                    x_tokens.append(vocab_tgt.id2token(wid))
-
+                # only leave the best one
+                x_tokens = [vocab_tgt.id2token(wid) for wid in sent[0] if wid != PAD and wid != EOS]
                 if len(x_tokens) > 0:
-                    trans_sents2doc[iter_num].append( vocab_tgt.tokenizer.detokenize(x_tokens) )
-                # @zzx (2019-11-22): adding eos for empty-results (from all-padded source) 
-                # leads to extra translation output. Just skip it
-                # else:
-                #     trans_sents2doc[iter_num].append( '%s' % vocab_tgt.id2token(EOS) )
+                    trans_sents2doc[iter_num].append(vocab_tgt.tokenizer.detokenize(x_tokens))
                 iter_num += 1
+
         trans_docs.extend(trans_sents2doc)
+        infer_progress_bar.update(batch_size_t)
+
+    ctx.IS_INFERRING = False
 
     origin_order = np.argsort(numbers).tolist()
     trans_docs = [trans_docs[ii] for ii in origin_order]
@@ -1052,161 +1049,9 @@ def translate(FLAGS):
             trans_sents.append(trans_sent)
     #split doc trans results into sent
 
-    # infer_progress_bar.close()
-
-    INFO('Done. Speed: {0:.2f} words/sec'.format(n_words / (timer.toc(return_seconds=True))))
-
-    # translation = []
-    # for sent in result:
-    #     samples = []
-    #     for trans in sent:
-    #         sample = []
-    #         for w in trans:
-    #             if w == vocab_tgt.EOS:
-    #                 break
-    #             sample.append(vocab_tgt.id2token(w))
-    #         samples.append(vocab_tgt.tokenizer.detokenize(sample))
-    #     translation.append(samples)
-
-    # # resume the ordering
-    # origin_order = np.argsort(result_numbers).tolist()
-    # translation = [translation[ii] for ii in origin_order]
-
-    keep_n = FLAGS.beam_size if FLAGS.keep_n <= 0 else min(FLAGS.beam_size, FLAGS.keep_n)
-    outputs = ['%s.%d' % (FLAGS.saveto, i) for i in range(keep_n)]
-
-    with batch_open(outputs, 'w') as handles:
-        for trans in trans_sents:
-            for i in range(keep_n):
-                if i < len(trans):
-                    handles[i].write('%s\n' % trans[i])
-                else:
-                    handles[i].write('%s\n' % 'eos')
-
-
-def ensemble_translate(FLAGS):
-    GlobalNames.USE_GPU = FLAGS.use_gpu
-
-    config_path = os.path.abspath(FLAGS.config_path)
-
-    with open(config_path.strip()) as f:
-        configs = yaml.load(f)
-
-    data_configs = configs['data_configs']
-    model_configs = configs['model_configs']
-
-    timer = Timer()
-    # ================================================================================== #
-    # Load Data
-
-    INFO('Loading data...')
-    timer.tic()
-
-    # Generate target dictionary
-    vocab_src = Vocabulary(**data_configs["vocabularies"][0])
-    vocab_tgt = Vocabulary(**data_configs["vocabularies"][1])
-
-    valid_dataset = TextLineDataset(data_path=FLAGS.source_path,
-                                    vocabulary=vocab_src)
-
-    valid_iterator = DataIterator(dataset=valid_dataset,
-                                  batch_size=FLAGS.batch_size,
-                                  use_bucket=True, buffer_size=100000, numbering=True)
-
-    INFO('Done. Elapsed time {0}'.format(timer.toc()))
-
-    # ================================================================================== #
-    # Build Model & Sampler & Validation
-    INFO('Building model...')
-    timer.tic()
-
-    nmt_models = []
-
-    model_path = FLAGS.model_path
-
-    for ii in range(len(model_path)):
-
-        nmt_model = build_model(n_src_vocab=vocab_src.max_n_words,
-                                n_tgt_vocab=vocab_tgt.max_n_words, **model_configs)
-        nmt_model.eval()
-        INFO('Done. Elapsed time {0}'.format(timer.toc()))
-
-        INFO('Reloading model parameters...')
-        timer.tic()
-
-        params = load_model_parameters(model_path[ii], map_location="cpu")
-
-        nmt_model.load_state_dict(params)
-
-        if GlobalNames.USE_GPU:
-            nmt_model.cuda()
-
-        nmt_models.append(nmt_model)
-
-    INFO('Done. Elapsed time {0}'.format(timer.toc()))
-
-    INFO('Begin...')
-    result_numbers = []
-    result = []
-    n_words = 0
-
-    timer.tic()
-
-    infer_progress_bar = tqdm(total=len(valid_iterator),
-                              desc=' - (Infer)  ',
-                              unit="sents")
-
-    valid_iter = valid_iterator.build_generator()
-    for batch in valid_iter:
-
-        numbers, seqs_x = batch
-
-        batch_size_t = len(seqs_x)
-
-        x = prepare_data(seqs_x=seqs_x, cuda=GlobalNames.USE_GPU)
-
-        with torch.no_grad():
-            word_ids = ensemble_beam_search(nmt_models=nmt_models, beam_size=FLAGS.beam_size, max_steps=FLAGS.max_steps,
-                                            src_seqs=x, alpha=FLAGS.alpha)
-
-        word_ids = word_ids.cpu().numpy().tolist()
-
-        # Append result
-        for sent_t in word_ids:
-            sent_t = [[wid for wid in line if wid != PAD] for line in sent_t]
-            result.append(sent_t)
-
-            n_words += len(sent_t[0])
-
-        infer_progress_bar.update(batch_size_t)
-
     infer_progress_bar.close()
 
     INFO('Done. Speed: {0:.2f} words/sec'.format(n_words / (timer.toc(return_seconds=True))))
-
-    translation = []
-    for sent in result:
-        samples = []
-        for trans in sent:
-            sample = []
-            for w in trans:
-                if w == vocab_tgt.EOS:
-                    break
-                sample.append(vocab_tgt.id2token(w))
-            samples.append(vocab_tgt.tokenizer.detokenize(sample))
-        translation.append(samples)
-
-    # resume the ordering
-    origin_order = np.argsort(result_numbers).tolist()
-    translation = [translation[ii] for ii in origin_order]
-
-    keep_n = FLAGS.beam_size if FLAGS.keep_n <= 0 else min(FLAGS.beam_size, FLAGS.keep_n)
-    outputs = ['%s.%d' % (FLAGS.saveto, i) for i in range(keep_n)]
-
-    with batch_open(outputs, 'w') as handles:
-        for trans in translation:
-            for i in range(keep_n):
-                if i < len(trans):
-                    handles[i].write('%s\n' % trans[i])
-                else:
-                    handles[i].write('%s\n' % 'eos')
+    
+    with open(FLAGS.saveto, "w") as fp:
+        fp.write("\n".join(trans_sents))
