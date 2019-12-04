@@ -128,6 +128,8 @@ class Encoder(nn.Module):
         
         if kwargs.get("global_encoder_gate", False):
             self.glb_gate = GatedConnection(kwargs["d_model"])
+        else:
+            self.glb_gate = None
 
     # -------------------------- prepares -------------------------------- #
     def _prepare_local_mask(self, segment_ids, enc_mask):

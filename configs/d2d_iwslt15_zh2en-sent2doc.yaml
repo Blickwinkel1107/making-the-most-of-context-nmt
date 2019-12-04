@@ -23,9 +23,9 @@ data_configs:
 model_configs:
   model: D2D
   enable_history_context: true  # decoder: enable transformer-xl mem
-  enable_global_encoding: true # encoder: encode entire document or separate sentences
-  reset_encoder_position: true # reset position embedding for each sentence
-  max_encoder_segment_embedding: 20 # adding segment embedding to each sentence. disable when -1
+  enable_global_encoding: false # encoder: encode entire document or separate sentences
+  reset_encoder_position: false # reset position embedding for each sentence
+  max_encoder_segment_embedding: -1 # adding segment embedding to each sentence. disable when -1
   encoder_attention_type: normal # [normal, relative]
   global_encoder_attention_type: none # [none, normal, word-relative, segment-relative]
   global_encoder_gate: false # toggle gating mechanism to fuse local&global output 
