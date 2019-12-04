@@ -28,6 +28,7 @@ model_configs:
   max_encoder_segment_embedding: 20
   encoder_attention_type: normal # [normal, relative]
   global_encoder_attention_type: none # [none, normal, word-relative, segment-relative]
+  global_encoder_gate: false # toggle gating mechanism to fuse local&global output 
   n_layers: 4
   n_head: 4
   d_word_vec: 256

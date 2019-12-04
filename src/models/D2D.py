@@ -23,6 +23,16 @@ from src.modules.relative_attention import MultiHeadedAttentionRelative
 from src.data.vocabulary import PAD, EOS, BOS
 
 
+class GatedConnection(nn.Module):
+    def __init__(self, d_model):
+        super().__init__()
+        self.w = nn.Linear(d_model*2, d_model, True)
+    
+    def forward(self, t1, t2):
+        g = F.sigmoid(self.w(torch.cat([t1, t2], -1)))
+        return g*t1 + (1-g)*t2
+
+
 class EncoderBlock(nn.Module):
     attention_cls = {
         "normal": MultiHeadedAttention,
@@ -115,6 +125,9 @@ class Encoder(nn.Module):
                 kwargs["max_encoder_segment_embedding"], kwargs["d_model"]//kwargs["n_head"])
             self.global_rel_seg_v = RelativeSegmentEmbeddings(
                 kwargs["max_encoder_segment_embedding"], kwargs["d_model"]//kwargs["n_head"])
+        
+        if kwargs.get("global_encoder_gate", False):
+            self.glb_gate = GatedConnection(kwargs["d_model"])
 
     # -------------------------- prepares -------------------------------- #
     def _prepare_local_mask(self, segment_ids, enc_mask):
@@ -198,14 +211,19 @@ class Encoder(nn.Module):
             return out
 
         elif self.glb_attn_type == "normal":
-            return self.global_encoder_layer(out, global_encoder_mask)
+            glb_out = self.global_encoder_layer(out, global_encoder_mask)
 
         elif self.glb_attn_type == "word-relative":
             raise NotImplementedError
 
         elif self.glb_attn_type == "segment-relative":
             seg_rel_k, seg_rel_v = self._prepare_segment_relative(segment_ids)
-            return self.global_encoder_layer(out, global_encoder_mask, rel_attn_kv=[seg_rel_k, seg_rel_v])
+            glb_out = self.global_encoder_layer(out, global_encoder_mask, rel_attn_kv=[seg_rel_k, seg_rel_v])
+
+        if self.glb_gate is not None:
+            return self.glb_gate(out, glb_out)
+        else:
+            return glb_out
 
     def forward(self, src_seq, position=None, segment_ids=None):
         # Word embedding look up
