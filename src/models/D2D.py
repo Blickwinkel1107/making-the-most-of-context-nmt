@@ -65,6 +65,8 @@ class Encoder(nn.Module):
         self._build_encoder_layers(**kwargs)
 
         self._build_global_encoder_layer(**kwargs)
+
+        self._build_fuse_method_for_global_local_output(**kwargs)
         
         self.layer_norm = nn.LayerNorm(kwargs["d_model"])
 
@@ -125,11 +127,16 @@ class Encoder(nn.Module):
                 kwargs["max_encoder_segment_embedding"], kwargs["d_model"]//kwargs["n_head"])
             self.global_rel_seg_v = RelativeSegmentEmbeddings(
                 kwargs["max_encoder_segment_embedding"], kwargs["d_model"]//kwargs["n_head"])
-        
+
+    def _build_fuse_method_for_global_local_output(self, **kwargs):
         if kwargs.get("global_encoder_gate", False):
             self.glb_gate = GatedConnection(kwargs["d_model"])
         else:
             self.glb_gate = None
+        if kwargs.get("global_encoder_cat", False):
+            self.glb_cat = torch.cat
+        else:
+            self.glb_cat = None
 
     # -------------------------- prepares -------------------------------- #
     def _prepare_local_mask(self, segment_ids, enc_mask):
@@ -209,6 +216,7 @@ class Encoder(nn.Module):
         return out
 
     def forward_global_encoder_layer(self, out, global_encoder_mask, segment_ids):
+        glb_out = None
         if self.glb_attn_type == "none":
             return out
 
@@ -222,10 +230,7 @@ class Encoder(nn.Module):
             seg_rel_k, seg_rel_v = self._prepare_segment_relative(segment_ids)
             glb_out = self.global_encoder_layer(out, global_encoder_mask, rel_attn_kv=[seg_rel_k, seg_rel_v])
 
-        if self.glb_gate is not None:
-            return self.glb_gate(out, glb_out)
-        else:
-            return glb_out
+        return glb_out
 
     def forward(self, src_seq, position=None, segment_ids=None):
         # Word embedding look up
@@ -249,10 +254,16 @@ class Encoder(nn.Module):
             encoder_layer_mask=encoder_self_attention_mask)
 
         # global encoder layer, if applicable
-        out = self.forward_global_encoder_layer(
+        glb_out = self.forward_global_encoder_layer(
             out=out,
             global_encoder_mask=global_attention_mask,
             segment_ids=segment_ids)
+
+        if self.glb_gate is not None:
+            out = self.glb_gate(out, glb_out)
+
+        if self.glb_cat is not None:
+            out = self.glb_cat([out, glb_out], dim=1)
 
         return self.layer_norm(out), enc_mask
 

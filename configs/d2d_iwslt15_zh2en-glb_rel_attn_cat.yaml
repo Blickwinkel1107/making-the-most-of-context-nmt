@@ -1,18 +1,18 @@
 data_configs:
   lang_pair: "zh-en"
   train_data:
-    - "/home/perceptron/workspace/nlp/IWSLT15.zh-en/docs_data/train.zh.doc.bpe.20"
-    - "/home/perceptron/workspace/nlp/IWSLT15.zh-en/docs_data/train.en.doc.bpe.20"
+    - "/home/zzheng/data/mt//IWSLT15.zh-en/docs_data/train.zh.doc.bpe.20"
+    - "/home/zzheng/data/mt//IWSLT15.zh-en/docs_data/train.en.doc.bpe.20"
   valid_data:
-    - "/home/perceptron/workspace/nlp/IWSLT15.zh-en/docs_data/dev.zh.doc.bpe.20"
-    - "/home/perceptron/workspace/nlp/IWSLT15.zh-en/docs_data/dev.en.doc.bpe.20"
-  bleu_valid_reference: "/home/perceptron/workspace/nlp/IWSLT15.zh-en/sents_data/dev.en.norm.tok"
+    - "/home/zzheng/data/mt//IWSLT15.zh-en/docs_data/dev.zh.doc.bpe.20"
+    - "/home/zzheng/data/mt//IWSLT15.zh-en/docs_data/dev.en.doc.bpe.20"
+  bleu_valid_reference: "/home/zzheng/data/mt//IWSLT15.zh-en/sents_data/dev.en.norm.tok"
   vocabularies:
     - type: "word"
-      dict_path: "/home/perceptron/workspace/nlp/datasets/IWSLT15.zh-en/vocab/vocab.zh.bpe.json"
+      dict_path: "/home/zzheng/data/mt//IWSLT15.zh-en/vocab/vocab.zh.bpe.json"
       max_n_words: -1
     - type: "word"
-      dict_path: "/home/perceptron/workspace/nlp/datasets/IWSLT15.zh-en/vocab/vocab.en.bpe.json"
+      dict_path: "/home/zzheng/data/mt//IWSLT15.zh-en/vocab/vocab.en.bpe.json"
       max_n_words: -1
   max_len:
     - -1
@@ -30,44 +30,44 @@ model_configs:
   global_encoder_attention_type: segment-relative # [none, normal, word-relative, segment-relative]
   global_encoder_gate: false # toggle gating mechanism to fuse local&global output
   global_encoder_cat: true # toggle concatenate mechanism to fuse local&global output
-  n_layers: 2
-  n_head: 2
-  d_word_vec: 10
-  d_model: 10
-  d_inner_hid: 20
+  n_layers: 4
+  n_head: 4
+  d_word_vec: 256
+  d_model: 256
+  d_inner_hid: 512
   dropout: 0.1
   proj_share_weight: true
   label_smoothing: 0.1
 
 optimizer_configs:
   optimizer: "adam"
-  learning_rate: 0.2
+  learning_rate: 0.1
   grad_clip: -1.0
   optimizer_params: ~
   schedule_method: noam
   scheduler_configs:
-    d_model: 20
-    warmup_steps: 8000
+    d_model: 256
+    warmup_steps: 4000
 
 training_configs:
   seed: 1234
-  max_epochs: 40
-  shuffle: false
-  use_bucket: false
-  batch_size: 1
-  batching_key: "samples"
+  max_epochs: 50
+  shuffle: true
+  use_bucket: true
+  batch_size: 2048
+  batching_key: "tokens"
   update_cycle: 1
-  disp_freq: 5
-  save_freq: 5
+  disp_freq: 1000
+  save_freq: 1000
   num_kept_checkpoints: 1
-  loss_valid_freq: 1000
-  valid_batch_size: 1000
-  bleu_valid_freq: 1000
+  loss_valid_freq: 500
+  valid_batch_size: 1
+  bleu_valid_freq: 500
   bleu_valid_batch_size: 1
-  bleu_valid_warmup: 0
+  bleu_valid_warmup: 10
   bleu_valid_configs:
     max_steps: 150
-    beam_size: 1
+    beam_size: 5
     alpha: 0.0
     sacrebleu_args: "--tokenize none -lc"
     postprocess: false

@@ -237,6 +237,10 @@ def compute_forward(model,
         with torch.set_grad_enabled(not eval):
             enc_out, enc_mask = model.encoder(seqs_x, position=sent_rank, segment_ids=sents_mapping)
 
+    if ctx.GLOBAL_CAT:  # extend mapping & mask to 2x because enc_output=[enc, glb_enc]
+        sents_mapping = torch.cat([sents_mapping, sents_mapping], dim=1)
+        enc_mask = torch.cat([enc_mask, enc_mask], dim=1)
+
     n_sents = len(x_batch)
     n_docs = x_batch[0].size(0) 
 
@@ -386,6 +390,10 @@ def bleu_validation(uidx,
             with torch.set_grad_enabled(False):
                 enc_out, enc_mask = model.encoder(x, position=sent_rank, segment_ids=sents_mapping)
 
+        if ctx.GLOBAL_CAT:  # extend mapping & mask to 2x because enc_output=[enc, glb_enc]
+            sents_mapping = torch.cat([sents_mapping, sents_mapping], dim=1)
+            enc_mask = torch.cat([enc_mask, enc_mask], dim=1)
+
         x_batch = prepare_data_doc(seqs_x)
 
         trans_sents2doc = []
@@ -532,6 +540,7 @@ def train(FLAGS):
     training_configs = configs['training_configs']
     ctx.ENABLE_CONTEXT = model_configs['enable_history_context']
     ctx.GLOBAL_ENCODING = model_configs['enable_global_encoding']
+    ctx.GLOBAL_CAT = model_configs['global_encoder_cat']
 
     GlobalNames.SEED = training_configs['seed']
 
@@ -925,7 +934,8 @@ def translate(FLAGS):
     data_configs = configs['data_configs']
     model_configs = configs['model_configs']
     ctx.ENABLE_CONTEXT = model_configs['enable_history_context']
-    ctx.GLOBAL_ENCODING = model_configs['enable_global_encoding']   
+    ctx.GLOBAL_ENCODING = model_configs['enable_global_encoding']
+    ctx.GLOBAL_CAT = model_configs['global_encoder_cat']
     ctx.IS_INFERRING = True
 
     timer = Timer()
@@ -998,6 +1008,10 @@ def translate(FLAGS):
             with torch.set_grad_enabled(False):
                 enc_out, enc_mask = model.encoder(x, position=sent_rank, segment_ids=sents_mapping)
 
+        if ctx.GLOBAL_CAT:  # extend mapping & mask to 2x because enc_output=[enc, glb_enc]
+            sents_mapping = torch.cat([sents_mapping, sents_mapping], dim=1)
+            enc_mask = torch.cat([enc_mask, enc_mask], dim=1)
+
         x_batch = prepare_data_doc(seqs_x)
 
         trans_sents2doc = []
@@ -1030,7 +1044,7 @@ def translate(FLAGS):
             iter_num = 0
             for sent_t in word_ids:
                 # only leave the best one
-                x_tokens = [vocab_tgt.id2token(wid) for wid in sent[0] if wid != PAD and wid != EOS]
+                x_tokens = [vocab_tgt.id2token(wid) for wid in sent_t[0] if wid != PAD and wid != EOS]
                 if len(x_tokens) > 0:
                     trans_sents2doc[iter_num].append(vocab_tgt.tokenizer.detokenize(x_tokens))
                 iter_num += 1
