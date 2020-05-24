@@ -934,7 +934,7 @@ def translate(FLAGS):
     data_configs = configs['data_configs']
     model_configs = configs['model_configs']
     ctx.ENABLE_CONTEXT = model_configs['enable_history_context']
-    ctx.GLOBAL_ENCODING = model_configs['enable_global_encoding']
+    ctx.GLOBAL_ENCODING = model_configs['enable_global_encoding']  
     ctx.GLOBAL_CAT = model_configs['global_encoder_cat']
     ctx.IS_INFERRING = True
 
@@ -1011,7 +1011,6 @@ def translate(FLAGS):
         if ctx.GLOBAL_CAT:  # extend mapping & mask to 2x because enc_output=[enc, glb_enc]
             sents_mapping = torch.cat([sents_mapping, sents_mapping], dim=1)
             enc_mask = torch.cat([enc_mask, enc_mask], dim=1)
-
         x_batch = prepare_data_doc(seqs_x)
 
         trans_sents2doc = []
@@ -1048,6 +1047,7 @@ def translate(FLAGS):
                 if len(x_tokens) > 0:
                     trans_sents2doc[iter_num].append(vocab_tgt.tokenizer.detokenize(x_tokens))
                 iter_num += 1
+        #end of for-loop
 
         trans_docs.extend(trans_sents2doc)
         infer_progress_bar.update(batch_size_t)

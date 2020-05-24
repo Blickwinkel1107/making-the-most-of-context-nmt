@@ -1,21 +1,23 @@
 #!/usr/bin/env bash
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=2
 
-MODEL_PATH="save/"
-SOURCE_PATH="/home/zzheng/data/mt/IWSLT15.zh-en/docs_data/tst.zh.doc.bpe.20"
-REFERENCE_PATH="/home/zzheng/data/mt/IWSLT15.zh-en/sents_data/tst.zh.norm.tok"
+MODEL_NAME="mdl"
+MODEL_PATH="./L67.30B21.20.para"
+SOURCE_PATH="/home/user_data55/yuex/News/docs_data/tst.en.doc.bpe.20"
+REFERENCE_PATH="/home/user_data55/yuex/News/sents_data/tst.de.norm.tok"
 SAVEDIR="./results"
-SAVETO="$SAVEDIR/trans.txt"
+SAVETO="$SAVEDIR/trans_a0.5b5.txt"
 mkdir -p $SAVEDIR
 
-python -m src.bin.translate \
-    --model_name $MODEL_NAME \
+python3 -m src.bin.translate \
+    --model_name ${MODEL_NAME} \
     --source_path ${SOURCE_PATH} \
-    --model_path $MODEL_NAME \
+    --model_path ${MODEL_PATH} \
     --config_path "./save/configs.yaml" \
     --batch_size 1 \
     --beam_size 5 \
+	--alpha 0.5 \
     --saveto $SAVETO \
     --use_gpu
 
-sacrebleu -lc -tok none $REFERENCE_PATH < $SAVETO
+sacrebleu -w 2 -lc -tok none $REFERENCE_PATH < $SAVETO

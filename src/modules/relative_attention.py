@@ -26,11 +26,11 @@ class MultiHeadedAttentionRelative(MultiHeadedAttention):
             Attention weights. [batch, heads, qlen, klen]
             Attention outputs. [batch, heads, qlen, depth]
         """
-        QK = torch.einsum("bhqd,bhkd->bhqk", q, k)
+        QK = torch.einsum("bhqd,bhkd->bhqk", [q, k])
         if rel_k.dim() == 3:
-            QR = torch.einsum("bhqd,qkd->bhqk", q, rel_k)
+            QR = torch.einsum("bhqd,qkd->bhqk", [q, rel_k])
         elif rel_k.dim() == 4:
-            QR = torch.einsum("bhqd,bqkd->bhqk", q, rel_k)
+            QR = torch.einsum("bhqd,bqkd->bhqk", [q, rel_k])
         logits = QK + QR
 
         # [bsz, head, qlen, klen]
@@ -40,11 +40,11 @@ class MultiHeadedAttentionRelative(MultiHeadedAttention):
         if dropout is not None:
             alpha = dropout(alpha)
 
-        AV = torch.einsum("bhqk,bhkd->bhqd", alpha, v)
+        AV = torch.einsum("bhqk,bhkd->bhqd", [alpha, v])
         if rel_v.dim() == 3:
-            AR = torch.einsum("bhqk,qkd->bhqd", alpha, rel_v)
+            AR = torch.einsum("bhqk,qkd->bhqd", [alpha, rel_v])
         elif rel_v.dim() == 4:
-            AR = torch.einsum("bhqk,bqkd->bhqd", alpha, rel_v)
+            AR = torch.einsum("bhqk,bqkd->bhqd", [alpha, rel_v])
         out = AV + AR
 
         return alpha, out
