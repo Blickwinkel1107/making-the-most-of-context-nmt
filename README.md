@@ -1,4 +1,4 @@
-# NJUNMT-pytorch
+# NJUNMT-pytorch: Document Neural Machine Translation
 
 ---
 [English](README.md), [中文](README-zh.md)
