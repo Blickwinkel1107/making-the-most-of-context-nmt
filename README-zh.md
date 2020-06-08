@@ -18,7 +18,6 @@ NJUNMT-pytorch-DocNMT是论文[“Toward Making the Most of Context in Neural Ma
         - [2. 修改配置文件](#2-%E4%BF%AE%E6%94%B9%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6)
         - [3. 训练](#3-%E8%AE%AD%E7%BB%83)
         - [4. 解码](#4-%E8%A7%A3%E7%A0%81)
-    - [Benchmark](#benchmark)
     - [和我们联系](#%E5%92%8C%E6%88%91%E4%BB%AC%E8%81%94%E7%B3%BB)
 
 ## 依赖包
@@ -55,11 +54,15 @@ bash ./scripts/translate.sh
 [IWSLT2015 (TED15)](https://wit3.fbk.eu/mt.php?release=2015-01)
 ##### EN-DE
 [IWSLT2017 (TED17)](https://github.com/sameenmaruf/selective-attn/tree/master/data/IWSLT2017)
+
 [News Commentary v11 (News)](http://www.casmacat.eu/corpus/news-commentary.html)
+
 [Europarl v7](https://www.statmt.org/europarl/)
 ##### EN-RU
 [Training data](https://www.dropbox.com/s/5drjpx07541eqst/acl19_good_translation_wrong_in_context.zip)
+
 [Contrastive test sets](https://github.com/lena-voita/good-translation-wrong-in-context/tree/master/consistency_testsets)
+
 Voita等人的详细的篇章现象评估方式和数据处理方式请参考[这里](https://github.com/lena-voita/good-translation-wrong-in-context)
 
 #### 1.2 分词
@@ -86,8 +89,7 @@ python ./scripts/build_dictionary.py --help
 
 #### 1.5 文档处理格式
 
-我们模型需要对数据进行文档分界处理，因此需要将数据处理为指定格式。
-对于一个包含M个文档，并且每个文档含N个句子的文件而言，其格式为：
+我们模型需要对数据进行文档分界处理，因此需要将数据处理为指定格式。对于一个包含M个文档，并且每个文档含N个句子的文件而言，其格式为：
 ```
 sent1_of_doc1 <EOS> <BOS> sent2_of_doc1 <EOS> <BOS> ... <EOS> <BOS> sentN_of_doc1
 sent1_of_doc2 <EOS> <BOS> sent2_of_doc2 <EOS> <BOS> ... <EOS> <BOS> sentN_of_doc2
