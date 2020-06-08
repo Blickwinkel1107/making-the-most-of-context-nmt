@@ -18,7 +18,16 @@ NJUNMT-pytorch-DocNMT是论文[“Toward Making the Most of Context in Neural Ma
         - [2. 修改配置文件](#2-%E4%BF%AE%E6%94%B9%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6)
         - [3. 训练](#3-%E8%AE%AD%E7%BB%83)
         - [4. 解码](#4-%E8%A7%A3%E7%A0%81)
-    - [和我们联系](#%E5%92%8C%E6%88%91%E4%BB%AC%E8%81%94%E7%B3%BB)
+
+## Bibtex
+```
+@inproceedings{zheng2020towards,
+  title={Towards Making the Most of Context in Neural Machine Translation},
+  author={Zheng, Zaixiang and Yue, Xiang and Huang, Shujian and Chen, Jiajun and Birch, Alexandra},
+  booktitle={IJCAI-PRICAI},
+  year={2020}
+}
+```
 
 ## 依赖包
 
@@ -163,7 +172,3 @@ python -m src.bin.translate \
 
 同样我们的代码支持集成解码。通过运行```python -m src.bin.ensemble_translate --help```来查看更多的选项。
 
-
-## 和我们联系
-
-如果你有任何问题，请联系[]()，[yx1107@foxmail.com](mailto:yx1107@foxmail.com)
