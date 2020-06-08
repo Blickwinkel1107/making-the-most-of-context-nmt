@@ -6,7 +6,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Build Status](https://travis-ci.com/whr94621/NJUNMT-pytorch.svg?branch=dev-travis-ci)](https://travis-ci.com/whr94621/NJUNMT-pytorch)
 
-NJUNMT-pytorch-DocNMT is the implementation of paper ["Toward Making the Most of Context in Neural Machine Translation"](https://arxiv.org/abs/2002.07982), and is based on [NJUNMT-pytorch](https://github.com/whr94621/NJUNMT-pytorch), the NMT tool-kit.
+NJUNMT-pytorch-DocNMT is the implementation of paper ["Towards Making the Most of Context in Neural Machine Translation"](https://arxiv.org/abs/2002.07982), and is based on [NJUNMT-pytorch](https://github.com/whr94621/NJUNMT-pytorch), the NMT tool-kit.
 
 ## Table of Contents
 - [NJUNMT-pytorch-DocNMT](#njunmt-pytorch-docnmt)
@@ -18,7 +18,16 @@ NJUNMT-pytorch-DocNMT is the implementation of paper ["Toward Making the Most of
         - [2. Write Configuration File](#2-write-configuration-file)
         - [3. Training](#3-training)
         - [4. Translation](#4-translation)
-    - [Contact](#contact)
+
+## Bibtex
+```
+@inproceedings{zheng2020towards,
+  title={Towards Making the Most of Context in Neural Machine Translation},
+  author={Zheng, Zaixiang and Yue, Xiang and Huang, Shujian and Chen, Jiajun and Birch, Alexandra},
+  booktitle={IJCAI-PRICAI},
+  year={2020}
+}
+```
 
 ## Requirements
 
@@ -160,7 +169,3 @@ See detail options by running ```python -m src.bin.translate --help```.
 
 Also our code support ensemble decoding. See more options by running ```python -m src.bin.ensemble_translate --help```
 
-
-## Contact
-
-If you have any question, please contact [](), [yx1107@foxmail.com](mailto:yx1107@foxmail.com)
