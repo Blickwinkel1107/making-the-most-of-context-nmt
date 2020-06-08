@@ -95,7 +95,7 @@ sent1_of_doc2 <EOS> <BOS> sent2_of_doc2 <EOS> <BOS> ... <EOS> <BOS> sentN_of_doc
 sent1_of_docM <EOS> <BOS> sent2_of_docM <EOS> <BOS> ... <EOS> <BOS> sentN_of_docM
 ```
 In terms of the limited memory, we partition the original document as up to 20 sentences as a group. In fact our model supports processing any amount of sentences in a document.
-Please see [data_format/dev.en.20.sample](data_format\dev.en.20.sample) to learn the sample of data format.
+Please see [data_format/dev.en.20.sample](data_format/dev.en.20.sample) to learn the sample of data format.
 
 ### 2. Write Configuration File
 
