@@ -18,7 +18,6 @@ NJUNMT-pytorch-DocNMT is the implementation of paper ["Toward Making the Most of
         - [2. Write Configuration File](#2-write-configuration-file)
         - [3. Training](#3-training)
         - [4. Translation](#4-translation)
-    - [Benchmark](#benchmark)
     - [Contact](#contact)
 
 ## Requirements
@@ -53,11 +52,16 @@ Training dataset in paper are listed as follows：
 [IWSLT2015 (TED15)](https://wit3.fbk.eu/mt.php?release=2015-01)
 ##### EN-DE
 [IWSLT2017 (TED17)](https://github.com/sameenmaruf/selective-attn/tree/master/data/IWSLT2017)
+
 [News Commentary v11 (News)](http://www.casmacat.eu/corpus/news-commentary.html)
+
 [Europarl v7](https://www.statmt.org/europarl/)
+
 ##### EN-RU
 [Training data](https://www.dropbox.com/s/5drjpx07541eqst/acl19_good_translation_wrong_in_context.zip)
+
 [Contrastive test sets](https://github.com/lena-voita/good-translation-wrong-in-context/tree/master/consistency_testsets)
+
 Please refer to [here](https://github.com/lena-voita/good-translation-wrong-in-context) to learn how Voita et al. configure and run models on contrastive dataset.
 
 #### 1.2 Tokenization
