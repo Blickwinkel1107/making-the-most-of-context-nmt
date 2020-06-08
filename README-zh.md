@@ -97,7 +97,7 @@ sent1_of_doc2 <EOS> <BOS> sent2_of_doc2 <EOS> <BOS> ... <EOS> <BOS> sentN_of_doc
 sent1_of_docM <EOS> <BOS> sent2_of_docM <EOS> <BOS> ... <EOS> <BOS> sentN_of_docM
 ```
 考虑到内存有限，我们将文档分割为最多20句子一组，实际上模型支持处理任意句子的文档。
-参考格式见[data_format/dev.en.20.sample](data_format\dev.en.20.sample)
+参考格式见[data_format/dev.en.20.sample](data_format/dev.en.20.sample)
 
 
 
