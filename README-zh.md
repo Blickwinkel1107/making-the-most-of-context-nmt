@@ -1,4 +1,4 @@
-# NJUNMT-pytorch
+# NJUNMT-pytorch-DocNMT
 
 ---
 [English](README.md), [中文](README-zh.md)
@@ -6,26 +6,22 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Build Status](https://travis-ci.com/whr94621/NJUNMT-pytorch.svg?branch=dev-travis-ci)](https://travis-ci.com/whr94621/NJUNMT-pytorch)
 
-NJUNMT-pytorch是一个开源的神经机器翻译工具包。这个工具包主要是为了方便机器翻译的研究，其中包括了如下一些基线系统：
-
-- [DL4MT-tutorial](https://github.com/nyu-dl/dl4mt-tutorial): 一个被广泛用作基于RNN的神经机器翻译模型的基线系统实现。据我们所知，这是目前唯一的和广为使用的的DL4MT系统相一致的pytorch实现。
-
-- [Attention is all you need](https://arxiv.org/abs/1706.03762): 谷歌提出的一个强大的神经机器翻译模型。这个模型完全依赖于注意力机制构建。
+NJUNMT-pytorch-DocNMT是论文[“Toward Making the Most of Context in Neural Machine Translation”](https://arxiv.org/abs/2002.07982)的开源实现，是在[NJUNMT-pytorch](https://github.com/whr94621/NJUNMT-pytorch)神经机器翻译工具包的基础上开发而来。
 
 ## 目录
-- [NJUNMT-pytorch](#njunmt-pytorch)
+- [NJUNMT-pytorch-DocNMT](#njunmt-pytorch-docnmt)
     - [目录](#%E7%9B%AE%E5%BD%95)
     - [依赖的包](#%E4%BE%9D%E8%B5%96%E7%9A%84%E5%8C%85)
     - [使用说明](#%E4%BD%BF%E7%94%A8%E8%AF%B4%E6%98%8E)
         - [快速开始](#%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B)
-        - [1. 建立词表](#1-%E5%BB%BA%E7%AB%8B%E8%AF%8D%E8%A1%A8)
+        - [1. 数据预处理](#1-数据预处理)
         - [2. 修改配置文件](#2-%E4%BF%AE%E6%94%B9%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6)
         - [3. 训练](#3-%E8%AE%AD%E7%BB%83)
         - [4. 解码](#4-%E8%A7%A3%E7%A0%81)
     - [Benchmark](#benchmark)
     - [和我们联系](#%E5%92%8C%E6%88%91%E4%BB%AC%E8%81%94%E7%B3%BB)
 
-## 依赖的包
+## 依赖包
 
 - python 3.5+
 - pytorch 0.4.0+
@@ -36,7 +32,7 @@ NJUNMT-pytorch是一个开源的神经机器翻译工具包。这个工具包主
 ## 使用说明
 
 ### 快速开始
-我们提供了一键在NIST中英数据集上训练和解码transformer模型的脚本(只在南京大学自然语言处理组的服务器上可用)。只需要在项目的根目录下执行
+我们提供了一键在数据集上训练和解码我们模型的脚本。只需要在项目的根目录下执行
 
 ``` bash
 bash ./scripts/train.sh
@@ -45,16 +41,38 @@ bash ./scripts/train.sh
 来进行模型训练，以及执行
 
 ``` bash
-# 3 means decoding on NIST 2003. This value
-# can also be 4,5,6, which represents NIST 2004, 2005, 2006 respectively. 
-bash ./scripts/translate.sh 3 
+bash ./scripts/translate.sh
 ```
 
-在NIST 2003数据集上进行解码。下面我们将详细说明如何配置训练和解码。
+在数据集上进行解码。
+下面我们将详细说明如何配置训练和解码。
 
-### 1. 建立词表
+### 1. 数据预处理
+#### 1.1 数据获取
 
-首先我们需要为源端和目标端建立词表文件。我们提供了一个脚本```./data/build_dictionary.py```来建立json格式的词表
+本文中所用到的训练集数据如下：
+##### ZH-EN
+[IWSLT2015 (TED15)](https://wit3.fbk.eu/mt.php?release=2015-01)
+##### EN-DE
+[IWSLT2017 (TED17)](https://github.com/sameenmaruf/selective-attn/tree/master/data/IWSLT2017)
+[News Commentary v11 (News)](http://www.casmacat.eu/corpus/news-commentary.html)
+[Europarl v7](https://www.statmt.org/europarl/)
+##### EN-RU
+[Training data](https://www.dropbox.com/s/5drjpx07541eqst/acl19_good_translation_wrong_in_context.zip)
+[Contrastive test sets](https://github.com/lena-voita/good-translation-wrong-in-context/tree/master/consistency_testsets)
+Voita等人的详细的篇章现象评估方式和数据处理方式请参考[这里](https://github.com/lena-voita/good-translation-wrong-in-context)
+
+#### 1.2 分词
+
+我们建议使用jieba进行中文分词，使用mosesdecoder自带脚本进行非中文分词。
+
+#### 1.3 字节对编码（可选）
+
+请参考[subword-nmt](https://github.com/rsennrich/subword-nmt)。
+
+#### 1.4 建立词表
+
+为了给源端和目标端的数据建立词表文件，我们提供了一个脚本```./scripts/build_dictionary.py```来建立json格式的词表。
 
 请通过运行:
 
@@ -66,14 +84,30 @@ python ./scripts/build_dictionary.py --help
 
 我们强烈推荐不要在这里限制词表的大小，而是通过模型的配置文件在训练时来设定。
 
+#### 1.5 文档处理格式
+
+我们模型需要对数据进行文档分界处理，因此需要将数据处理为指定格式。
+对于一个包含M个文档，并且每个文档含N个句子的文件而言，其格式为：
+```
+sent1_of_doc1 <EOS> <BOS> sent2_of_doc1 <EOS> <BOS> ... <EOS> <BOS> sentN_of_doc1
+sent1_of_doc2 <EOS> <BOS> sent2_of_doc2 <EOS> <BOS> ... <EOS> <BOS> sentN_of_doc2
+...
+sent1_of_docM <EOS> <BOS> sent2_of_docM <EOS> <BOS> ... <EOS> <BOS> sentN_of_docM
+```
+考虑到内存有限，我们将文档分割为最多20句子一组，实际上模型支持处理任意句子的文档。
+参考格式见[data_format/dev.en.20.sample](data_format\dev.en.20.sample)
+
+
+
 ### 2. 修改配置文件
 
 可以参考```./configs```文件夹中的一些样例。我们提供了几种配置样例:
 
-- ```dl4mt_nist_zh2en.yaml```: 在NIST中英上训练一个DL4MT模型
-- ```transformer_nist_zh2en.yaml```: 在NIST中英上训练一个词级别的transformer模型
-- ```transformer_nist_zh2en_bpe.yaml```: 在NIST中英上训练一个使用BPE的transformer模型
-- ```transformer_wmt14_en2de.yaml```: 在WMT14英德上训练一个transformer模型
+- ```ted15_ours.yaml```: 在TED15中英上训练
+- ```ted17_ours.yaml```: 在TED17英德上训练
+- ```news_ours.yaml```: 在News英德上训练
+- ```euro_ours.yaml```: 在Europarl英德上训练
+
 
 了解更多关于如何配置一个神经机器翻译模型的训练任务，请参考
 [这里](https://github.com/whr94621/NJUNMT-pytorch/wiki/Configuration)。
@@ -127,10 +161,7 @@ python -m src.bin.translate \
 
 同样我们的代码支持集成解码。通过运行```python -m src.bin.ensemble_translate --help```来查看更多的选项。
 
-## Benchmark
-
-请查看[BENCHMARK.md](./BENCHMARK.md)
 
 ## 和我们联系
 
-如果你有任何问题，请联系[whr94621@foxmail.com](mailto:whr94621@foxmail.com)
+如果你有任何问题，请联系[]()，[yx1107@foxmail.com](mailto:yx1107@foxmail.com)
