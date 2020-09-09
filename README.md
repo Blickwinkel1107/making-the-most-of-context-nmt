@@ -1,4 +1,4 @@
-# Making The Most Of Context Nmt
+# Towards Making The Most of Context in NMT (IJCAI 2020)
 
 ---
 [English](README.md), [中文](README-zh.md)
