@@ -1,4 +1,4 @@
-# NJUNMT-pytorch-DocNMT
+# Making The Most Of Context Nmt
 
 ---
 [English](README.md), [中文](README-zh.md)
